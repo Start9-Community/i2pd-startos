@@ -1,9 +1,9 @@
 import { i18n } from './i18n'
 import { sdk } from './sdk'
-import { storeJson } from './fileModels/store.json'
+import { torrc } from './fileModels/torrc'
 
 export const setInterfaces = sdk.setupInterfaces(async ({ effects }) => {
-  const relay = await storeJson.read((s) => s.relay).const(effects)
+  const relay = await torrc.read((s) => s.relay).const(effects)
 
   if (!relay?.enabled) return []
 

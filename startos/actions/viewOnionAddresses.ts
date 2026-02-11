@@ -1,4 +1,4 @@
-import { storeJson } from '../fileModels/store.json'
+import { torrc } from '../fileModels/torrc'
 import { i18n } from '../i18n'
 import { sdk } from '../sdk'
 
@@ -8,7 +8,7 @@ export const viewOnionAddresses = sdk.Action.withoutInput(
 
   // metadata
   async ({ effects }) => {
-    const store = await storeJson.read().const(effects)
+    const store = await torrc.read().const(effects)
     const onionServices = store?.onionServices || {}
 
     return {
@@ -25,48 +25,51 @@ export const viewOnionAddresses = sdk.Action.withoutInput(
 
   // execution function
   async ({ effects }) => {
-    const store = await storeJson.read().once()
+    const store = await torrc.read().once()
     const onionServices = store?.onionServices || {}
 
-    const values = await Promise.all(
-      Object.entries(onionServices).map(async ([name, svc]) => {
+    const entries = await Promise.all(
+      Object.entries(onionServices).map(async ([key, svc]) => {
         let hostname = '<pending>'
         try {
-          const content = await sdk.volumes.tor.readFile(`hs_${name}/hostname`)
+          const content = await sdk.volumes.tor.readFile(`hs_${key}/hostname`)
           hostname = content.toString().trim()
         } catch {
           // hostname file doesn't exist yet (first run)
         }
 
-        let displayName = name
+        let displayName: string
 
         if (svc.packageId !== 'startos') {
           const title = await sdk
             .getServiceManifest(effects, svc.packageId, (m) => m?.title)
             .const()
 
-          const ifaceName = await sdk.serviceInterface
-            .get(
-              effects,
-              { id: svc.interfaceId, packageId: svc.packageId },
-              (i) => i?.name || 'unknown',
+          const ifaceNames = await sdk.serviceInterface
+            .getAll(effects, { packageId: svc.packageId }, (ifaces) =>
+              ifaces
+                .filter((i) => i.addressInfo?.hostId === svc.hostId)
+                .map((i) => i.name),
             )
             .once()
 
-          displayName = `${name} (${title} - ${ifaceName})`
+          displayName = `${title} (${ifaceNames.join(', ')})`
         } else {
-          displayName = `${name} (StartOS - UI)`
+          displayName = 'StartOS (UI)'
         }
 
-        return {
+        return svc.ports.map((port) => ({
           type: 'single' as const,
           name: displayName,
           description: null,
-          value: hostname,
+          value:
+            port.external === 80
+              ? `http://${hostname}`
+              : `http://${hostname}:${port.external}`,
           masked: false,
           copyable: true,
           qr: true,
-        }
+        }))
       }),
     )
 
@@ -76,7 +79,7 @@ export const viewOnionAddresses = sdk.Action.withoutInput(
       message: null,
       result: {
         type: 'group' as const,
-        value: values,
+        value: entries.flat(),
       },
     }
   },

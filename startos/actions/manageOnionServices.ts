@@ -1,4 +1,4 @@
-import { storeJson } from '../fileModels/store.json'
+import { torrc } from '../fileModels/torrc'
 import { i18n } from '../i18n'
 import { sdk } from '../sdk'
 
@@ -9,29 +9,8 @@ export const inputSpec = InputSpec.of({
     List.obj(
       { name: i18n('Onion Services') },
       {
-        displayAs: '{{name}} ({{service.selection}})',
-        uniqueBy: { all: ['name'] },
+        displayAs: '{{service.selection}}',
         spec: InputSpec.of({
-          name: Value.text({
-            name: i18n('Name'),
-            description: i18n(
-              'A short, unique name for this onion service (e.g. my-bitcoin)',
-            ),
-            required: true,
-            default: null,
-            placeholder: 'my-service',
-            patterns: [
-              {
-                regex: '^[a-zA-Z0-9][a-zA-Z0-9_-]*$',
-                description:
-                  'Must start with alphanumeric and contain only letters, numbers, hyphens, and underscores',
-              },
-            ],
-            masked: false,
-            inputmode: 'text',
-            minLength: 1,
-            maxLength: 64,
-          }),
           service: Value.dynamicUnion(async ({ effects }) => {
             const packages = await sdk.getInstalledPackages(effects)
 
@@ -44,11 +23,16 @@ export const inputSpec = InputSpec.of({
 
                 const iFaces = await sdk.serviceInterface
                   .getAll(effects, { packageId }, (ifaces) =>
-                    ifaces.map((i) => [i.id, i.name]),
+                    ifaces
+                      .filter((i) => i.addressInfo && i.host)
+                      .map((i) => ({
+                        name: i.name,
+                        hostId: i.addressInfo!.hostId,
+                      })),
                   )
                   .once()
 
-                return getSpec(packageId, title, iFaces)
+                return getHostSpec(packageId, title, iFaces)
               }),
             )
 
@@ -58,25 +42,16 @@ export const inputSpec = InputSpec.of({
               disabled: false,
               variants: Variants.of(
                 Object.fromEntries(
-                  [getSpec('startos', 'StartOS', [['ui', 'UI']])].concat(
-                    entries,
-                  ),
+                  [
+                    getHostSpec('startos', 'StartOS', [
+                      { name: 'UI', hostId: 'main' },
+                    ]),
+                  ].concat(entries),
                 ),
               ),
             }
           }),
-          virtualPort: Value.number({
-            name: i18n('Virtual Port'),
-            description: i18n('The port number exposed on the .onion address'),
-            required: false,
-            default: 80,
-            min: 1,
-            max: 65535,
-            integer: true,
-            placeholder: null,
-            units: null,
-          }),
-          privateKey: Value.textarea({
+          privateKey: Value.text({
             name: i18n('Private Key (optional)'),
             description: i18n(
               'Base64-encoded ed25519 private key for a vanity .onion address. Leave blank to auto-generate.',
@@ -84,8 +59,17 @@ export const inputSpec = InputSpec.of({
             required: false,
             default: null,
             placeholder: null,
-            minLength: null,
-            maxLength: null,
+            patterns: [
+              {
+                regex: '^[A-Za-z0-9+/]+=*$',
+                description:
+                  'Must be a valid base64 string',
+              },
+            ],
+            masked: true,
+            inputmode: 'text',
+            minLength: 128,
+            maxLength: 128,
           }),
         }),
       },
@@ -112,66 +96,122 @@ export const manageOnionServices = sdk.Action.withInput(
 
   // pre-fill form
   async ({ effects }) => {
-    const store = await storeJson.read().once()
-    const onionServices = store?.onionServices || {}
+    const config = await torrc.read().once()
+    const onionServices = config?.onionServices || {}
 
     return {
-      services: Object.entries(onionServices).map(([name, svc]) => ({
-        name,
+      services: Object.values(onionServices).map((svc) => ({
         service: {
           selection: svc.packageId,
           value: {
-            iface: svc.interfaceId,
+            host: {
+              selection: svc.hostId,
+              value: {},
+            },
           },
         },
-        virtualPort: svc.virtualPort,
-        privateKey: svc.privateKey || null,
+        privateKey: svc.privateKey ?? null,
       })),
     }
   },
 
   // execution function
   async ({ effects, input }) => {
-    const store = await storeJson.read().once()
-
     const onionServices: Record<
       string,
       {
         packageId: string
-        interfaceId: string
-        virtualPort: number
+        hostId: string
+        ports: { external: number; internal: number }[]
         privateKey: string | undefined
       }
     > = {}
 
-    input.services.forEach((entry) => {
-      const { selection, value } = entry.service as {
-        selection: string
-        value: { iface: string }
-      }
+    await Promise.all(
+      input.services.map(async (entry) => {
+        const { selection: packageId, value } = entry.service as {
+          selection: string
+          value: {
+            host: { selection: string; value: Record<string, never> }
+          }
+        }
+        const hostId = value.host.selection
+        const key = `${packageId}-${hostId}`
 
-      onionServices[entry.name] = {
-        packageId: selection,
-        interfaceId: value.iface,
-        virtualPort: entry.virtualPort ?? 80,
-        privateKey: entry.privateKey || undefined,
-      }
-    })
+        let ports: { external: number; internal: number }[]
 
-    await storeJson.merge(effects, { onionServices })
+        if (packageId === 'startos') {
+          ports = [{ external: 80, internal: 80 }]
+        } else {
+          const hosts = await sdk.serviceInterface
+            .getAll(effects, { packageId }, (ifaces) =>
+              ifaces
+                .filter((i) => i.addressInfo?.hostId === hostId && i.host)
+                .map((i) => i.host!),
+            )
+            .once()
+
+          const host = hosts[0]
+          if (host) {
+            ports = Object.entries(host.bindings)
+              .filter(([_, b]) => b.enabled)
+              .map(([internalPort, b]) => ({
+                external: b.options.preferredExternalPort,
+                internal: Number(internalPort),
+              }))
+          } else {
+            ports = []
+          }
+        }
+
+        onionServices[key] = {
+          packageId,
+          hostId,
+          ports,
+          privateKey: entry.privateKey || undefined,
+        }
+      }),
+    )
+
+    await torrc.merge(effects, { onionServices })
   },
 )
 
-function getSpec(packageId: string, packageTitle: string, iFaces: string[][]) {
+function getHostSpec(
+  packageId: string,
+  packageTitle: string,
+  iFaces: { name: string; hostId: string }[],
+) {
+  // Group interfaces by hostId
+  const byHost = new Map<string, string[]>()
+  for (const iface of iFaces) {
+    const names = byHost.get(iface.hostId)
+    if (names) {
+      names.push(iface.name)
+    } else {
+      byHost.set(iface.hostId, [iface.name])
+    }
+  }
+
   return [
     packageId,
     {
       name: packageTitle,
       spec: InputSpec.of({
-        iface: Value.select({
+        host: Value.union({
           name: i18n('Service Interface'),
-          default: '',
-          values: Object.fromEntries(iFaces),
+          default: [...byHost.keys()][0] ?? '',
+          variants: Variants.of(
+            Object.fromEntries(
+              [...byHost.entries()].map(([hostId, names]) => [
+                hostId,
+                {
+                  name: names.join(', '),
+                  spec: InputSpec.of({}),
+                },
+              ]),
+            ),
+          ),
         }),
       }),
     },
