@@ -5,14 +5,13 @@ export const manifest = setupManifest({
   id: 'tor',
   title: 'Tor',
   license: 'BSD-3-Clause',
-  wrapperRepo: 'https://github.com/Start9Labs/tor-startos/',
+  packageRepo: 'https://github.com/Start9Labs/tor-startos/',
   upstreamRepo: 'https://gitlab.torproject.org/tpo/core/tor/',
-  supportSite: 'https://gitlab.torproject.org/tpo/core/tor/-/issues/',
-  marketingSite: 'https://www.torproject.org/',
+  marketingUrl: 'https://www.torproject.org/',
   donationUrl: 'https://donate.torproject.org/',
-  docsUrl: 'https://community.torproject.org/onion-services/',
+  docsUrls: ['https://community.torproject.org/onion-services/'],
   description: i18n.description,
-  volumes: ['tor'],
+  volumes: ['tor', 'start9'],
   images: {
     tor: {
       source: { dockerBuild: {} },
@@ -20,4 +19,5 @@ export const manifest = setupManifest({
     },
   },
   dependencies: {},
+  plugins: ['url-v0'],
 })

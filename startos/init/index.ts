@@ -4,7 +4,7 @@ import { setInterfaces } from '../interfaces'
 import { versionGraph } from '../install/versionGraph'
 import { actions } from '../actions'
 import { restoreInit } from '../backups'
-import { taskAddOnionService } from './taskAddOnionService'
+import { registerUrlPlugin, exportUrls } from '../plugin/url'
 
 export const init = sdk.setupInit(
   restoreInit,
@@ -12,7 +12,8 @@ export const init = sdk.setupInit(
   setInterfaces,
   setDependencies,
   actions,
-  taskAddOnionService,
+  registerUrlPlugin,
+  exportUrls,
 )
 
 export const uninit = sdk.setupUninit(versionGraph)

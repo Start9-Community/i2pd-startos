@@ -43,33 +43,13 @@ export const inputSpec = InputSpec.of({
               variants: Variants.of(
                 Object.fromEntries(
                   [
-                    getHostSpec('startos', 'StartOS', [
+                    getHostSpec('STARTOS', 'StartOS', [
                       { name: 'UI', hostId: 'main' },
                     ]),
                   ].concat(entries),
                 ),
               ),
             }
-          }),
-          privateKey: Value.text({
-            name: i18n('Private Key (optional)'),
-            description: i18n(
-              'Base64-encoded ed25519 private key for a vanity .onion address. Leave blank to auto-generate.',
-            ),
-            required: false,
-            default: null,
-            placeholder: null,
-            patterns: [
-              {
-                regex: '^[A-Za-z0-9+/]+=*$',
-                description:
-                  'Must be a valid base64 string',
-              },
-            ],
-            masked: true,
-            inputmode: 'text',
-            minLength: 128,
-            maxLength: 128,
           }),
         }),
       },
@@ -99,32 +79,44 @@ export const manageOnionServices = sdk.Action.withInput(
     const config = await torrc.read().once()
     const onionServices = config?.onionServices || {}
 
-    return {
-      services: Object.values(onionServices).map((svc) => ({
-        service: {
-          selection: svc.packageId,
-          value: {
-            host: {
-              selection: svc.hostId,
-              value: {},
+    const services: {
+      service: {
+        selection: string
+        value: { host: { selection: string; value: Record<string, never> } }
+      }
+    }[] = []
+
+    for (const [packageId, hosts] of Object.entries(onionServices)) {
+      for (const [hostId, entries] of Object.entries(hosts)) {
+        for (const _entry of entries) {
+          services.push({
+            service: {
+              selection: packageId,
+              value: {
+                host: { selection: hostId, value: {} },
+              },
             },
-          },
-        },
-        privateKey: svc.privateKey ?? null,
-      })),
+          })
+        }
+      }
     }
+
+    return { services }
   },
 
   // execution function
   async ({ effects, input }) => {
     const onionServices: Record<
       string,
-      {
-        packageId: string
-        hostId: string
-        ports: { external: number; internal: number }[]
-        privateKey: string | undefined
-      }
+      Record<
+        string,
+        {
+          ports: Record<
+            string,
+            { target: string; ssl: boolean; internalPort: number }
+          >
+        }[]
+      >
     > = {}
 
     await Promise.all(
@@ -136,12 +128,23 @@ export const manageOnionServices = sdk.Action.withInput(
           }
         }
         const hostId = value.host.selection
-        const key = `${packageId}-${hostId}`
 
-        let ports: { external: number; internal: number }[]
+        const defaultHost =
+          packageId === 'STARTOS' ? 'startos' : `${packageId}.startos`
 
-        if (packageId === 'startos') {
-          ports = [{ external: 80, internal: 80 }]
+        let ports: Record<
+          string,
+          { target: string; ssl: boolean; internalPort: number }
+        >
+
+        if (packageId === 'STARTOS') {
+          ports = {
+            '80': {
+              target: `${defaultHost}:80`,
+              ssl: false,
+              internalPort: 80,
+            },
+          }
         } else {
           const hosts = await sdk.serviceInterface
             .getAll(effects, { packageId }, (ifaces) =>
@@ -152,28 +155,29 @@ export const manageOnionServices = sdk.Action.withInput(
             .once()
 
           const host = hosts[0]
+          ports = {}
           if (host) {
-            ports = Object.entries(host.bindings)
-              .filter(([_, b]) => b.enabled)
-              .map(([internalPort, b]) => ({
-                external: b.options.preferredExternalPort,
-                internal: Number(internalPort),
-              }))
-          } else {
-            ports = []
+            for (const [internalPort, b] of Object.entries(host.bindings)) {
+              if (b.enabled) {
+                ports[String(b.options.preferredExternalPort)] = {
+                  target: `${defaultHost}:${internalPort}`,
+                  ssl: false,
+                  internalPort: Number(internalPort),
+                }
+              }
+            }
           }
         }
 
-        onionServices[key] = {
-          packageId,
-          hostId,
-          ports,
-          privateKey: entry.privateKey || undefined,
-        }
+        if (!onionServices[packageId]) onionServices[packageId] = {}
+        if (!onionServices[packageId][hostId])
+          onionServices[packageId][hostId] = []
+        onionServices[packageId][hostId].push({ ports })
       }),
     )
 
-    await torrc.merge(effects, { onionServices })
+    const config = await torrc.read().once()
+    await torrc.write(effects, { ...config, onionServices })
   },
 )
 

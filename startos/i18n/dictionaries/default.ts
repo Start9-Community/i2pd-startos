@@ -31,6 +31,19 @@ const dict = {
   Relay: 31,
   'Tor Relay OR Port': 32,
   'Tor relay port for the Tor network': 33,
+  'Add Onion Service': 34,
+  'Add a Tor onion service for this URL': 35,
+  'Delete Onion Service': 36,
+  'Remove a Tor onion service': 37,
+  'Also SSL': 38,
+  'Also serve this address with SSL': 39,
+  Address: 40,
+  'Create new address': 41,
+  'Confirm you would like to delete this .onion address': 42,
+  'Import Onion Addresses': 43,
+  'Import .onion addresses from a previous installation': 44,
+  Addresses: 45,
+  'Onion Address': 46,
 } as const
 
 export type I18nKey = keyof typeof dict

@@ -1,4 +1,4 @@
-import { torrc } from '../fileModels/torrc'
+import { hsDir, torrc } from '../fileModels/torrc'
 import { i18n } from '../i18n'
 import { sdk } from '../sdk'
 
@@ -10,6 +10,9 @@ export const viewOnionAddresses = sdk.Action.withoutInput(
   async ({ effects }) => {
     const store = await torrc.read().const(effects)
     const onionServices = store?.onionServices || {}
+    const hasServices = Object.values(onionServices).some((hosts) =>
+      Object.values(hosts).some((services) => services.length > 0),
+    )
 
     return {
       name: i18n('View Onion Addresses'),
@@ -17,7 +20,7 @@ export const viewOnionAddresses = sdk.Action.withoutInput(
       warning: null,
       allowedStatuses: 'only-running',
       group: null,
-      visibility: Object.keys(onionServices).length
+      visibility: hasServices
         ? 'enabled'
         : { disabled: i18n('You have no onion services') },
     }
@@ -29,48 +32,56 @@ export const viewOnionAddresses = sdk.Action.withoutInput(
     const onionServices = store?.onionServices || {}
 
     const entries = await Promise.all(
-      Object.entries(onionServices).map(async ([key, svc]) => {
-        let hostname = '<pending>'
-        try {
-          const content = await sdk.volumes.tor.readFile(`hs_${key}/hostname`)
-          hostname = content.toString().trim()
-        } catch {
-          // hostname file doesn't exist yet (first run)
-        }
+      Object.entries(onionServices).flatMap(([packageId, hosts]) =>
+        Object.entries(hosts).flatMap(([hostId, services]) =>
+          services.map(async (svc, index) => {
+            let hostname = '<pending>'
+            try {
+              const content = await sdk.volumes.tor.readFile(
+                `${hsDir(packageId, hostId, index)}/hostname`,
+              )
+              hostname = content.toString().trim()
+            } catch {
+              // hostname file doesn't exist yet (first run)
+            }
 
-        let displayName: string
+            let displayName: string
 
-        if (svc.packageId !== 'startos') {
-          const title = await sdk
-            .getServiceManifest(effects, svc.packageId, (m) => m?.title)
-            .const()
+            if (packageId !== 'STARTOS') {
+              const title = await sdk
+                .getServiceManifest(effects, packageId, (m) => m?.title)
+                .const()
 
-          const ifaceNames = await sdk.serviceInterface
-            .getAll(effects, { packageId: svc.packageId }, (ifaces) =>
-              ifaces
-                .filter((i) => i.addressInfo?.hostId === svc.hostId)
-                .map((i) => i.name),
+              const ifaceNames = await sdk.serviceInterface
+                .getAll(effects, { packageId }, (ifaces) =>
+                  ifaces
+                    .filter((i) => i.addressInfo?.hostId === hostId)
+                    .map((i) => i.name),
+                )
+                .once()
+
+              displayName = `${title} (${ifaceNames.join(', ')})`
+            } else {
+              displayName = 'StartOS (UI)'
+            }
+
+            return Object.entries(svc.ports).map(
+              ([externalPort, _portInfo]) => ({
+                type: 'single' as const,
+                name: displayName,
+                description: null,
+                value:
+                  externalPort === '80'
+                    ? `http://${hostname}`
+                    : `http://${hostname}:${externalPort}`,
+                masked: false,
+                copyable: true,
+                qr: true,
+              }),
             )
-            .once()
-
-          displayName = `${title} (${ifaceNames.join(', ')})`
-        } else {
-          displayName = 'StartOS (UI)'
-        }
-
-        return svc.ports.map((port) => ({
-          type: 'single' as const,
-          name: displayName,
-          description: null,
-          value:
-            port.external === 80
-              ? `http://${hostname}`
-              : `http://${hostname}:${port.external}`,
-          masked: false,
-          copyable: true,
-          qr: true,
-        }))
-      }),
+          }),
+        ),
+      ),
     )
 
     return {

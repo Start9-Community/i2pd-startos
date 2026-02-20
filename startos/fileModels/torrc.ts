@@ -3,16 +3,14 @@ import { sdk } from '../sdk'
 
 const { arrayOf, object, string, number, boolean, dictionary } = matches
 
-const portPairShape = object({
-  external: number,
-  internal: number,
+const portInfoShape = object({
+  target: string,
+  ssl: boolean,
+  internalPort: number,
 })
 
-export const onionServiceShape = object({
-  packageId: string,
-  hostId: string,
-  ports: arrayOf(portPairShape),
-  privateKey: string.optional().onMismatch(undefined),
+export const onionServiceEntryShape = object({
+  ports: dictionary([string, portInfoShape]),
 })
 
 export const relayShape = object({
@@ -26,7 +24,10 @@ export const relayShape = object({
 })
 
 const shape = object({
-  onionServices: dictionary([string, onionServiceShape])
+  onionServices: dictionary([
+    string,
+    dictionary([string, arrayOf(onionServiceEntryShape)]),
+  ])
     .optional()
     .onMismatch({}),
   relay: relayShape.optional().onMismatch({
@@ -42,6 +43,10 @@ const shape = object({
 
 export type TorrcConfig = typeof shape._TYPE
 
+export function hsDir(packageId: string, hostId: string, index: number) {
+  return `hs_${packageId}_${hostId}_${index}`
+}
+
 function toFile(config: TorrcConfig): string {
   const lines: string[] = [
     'SocksPort 0.0.0.0:9050',
@@ -51,17 +56,21 @@ function toFile(config: TorrcConfig): string {
   ]
 
   const onionServices = config.onionServices || {}
-  for (const [key, svc] of Object.entries(onionServices)) {
-    const metaParts = [key, svc.packageId, svc.hostId]
-    if (svc.privateKey) metaParts.push(svc.privateKey)
-    lines.push(`# @service ${metaParts.join(' ')}`)
-    lines.push(`HiddenServiceDir /var/lib/tor/hs_${key}/`)
-    const host =
-      svc.packageId === 'startos' ? 'startos' : `${svc.packageId}.startos`
-    for (const port of svc.ports) {
-      lines.push(`HiddenServicePort ${port.external} ${host}:${port.internal}`)
+  for (const [packageId, hosts] of Object.entries(onionServices)) {
+    for (const [hostId, services] of Object.entries(hosts)) {
+      services.forEach((svc, index) => {
+        lines.push(`# @service ${packageId} ${hostId}`)
+        lines.push(
+          `HiddenServiceDir /var/lib/tor/${hsDir(packageId, hostId, index)}/`,
+        )
+        for (const [externalPort, portInfo] of Object.entries(svc.ports)) {
+          if (portInfo.ssl)
+            lines.push(`# @ssl ${portInfo.internalPort}`)
+          lines.push(`HiddenServicePort ${externalPort} ${portInfo.target}`)
+        }
+        lines.push('')
+      })
     }
-    lines.push('')
   }
 
   const relay = config.relay
@@ -80,60 +89,79 @@ function toFile(config: TorrcConfig): string {
 }
 
 function fromFile(raw: string): unknown {
-  const onionServices: Record<string, unknown> = {}
+  const onionServices: Record<string, Record<string, unknown[]>> = {}
   const relay: Record<string, unknown> = {}
 
   const lines = raw.split('\n')
-  let currentMeta: {
-    key: string
-    packageId: string
-    hostId: string
-    privateKey?: string
-  } | null = null
-  let currentPorts: { external: number; internal: number }[] = []
+  let currentPackageId: string | null = null
+  let currentHostId: string | null = null
+  let currentPorts: Record<
+    string,
+    { target: string; ssl: boolean; internalPort: number }
+  > = {}
+  let nextSslInternalPort: number | null = null
 
-  function flushCurrentService() {
-    if (currentMeta && currentPorts.length > 0) {
-      onionServices[currentMeta.key] = {
-        packageId: currentMeta.packageId,
-        hostId: currentMeta.hostId,
+  function flushCurrent() {
+    if (
+      currentPackageId &&
+      currentHostId &&
+      Object.keys(currentPorts).length > 0
+    ) {
+      if (!onionServices[currentPackageId])
+        onionServices[currentPackageId] = {}
+      if (!onionServices[currentPackageId][currentHostId])
+        onionServices[currentPackageId][currentHostId] = []
+      onionServices[currentPackageId][currentHostId].push({
         ports: currentPorts,
-        privateKey: currentMeta.privateKey,
-      }
+      })
     }
-    currentMeta = null
-    currentPorts = []
+    currentPackageId = null
+    currentHostId = null
+    currentPorts = {}
+    nextSslInternalPort = null
   }
 
   for (const line of lines) {
     const trimmed = line.trim()
 
-    const serviceMatch = trimmed.match(/^# @service (\S+) (\S+) (\S+)\s*(.*)$/)
+    const serviceMatch = trimmed.match(/^# @service (\S+) (\S+)$/)
     if (serviceMatch) {
-      flushCurrentService()
-      currentMeta = {
-        key: serviceMatch[1],
-        packageId: serviceMatch[2],
-        hostId: serviceMatch[3],
-        privateKey: serviceMatch[4] || undefined,
-      }
+      flushCurrent()
+      currentPackageId = serviceMatch[1]
+      currentHostId = serviceMatch[2]
+      continue
+    }
+
+    const sslMatch = trimmed.match(/^# @ssl (\d+)$/)
+    if (sslMatch) {
+      nextSslInternalPort = parseInt(sslMatch[1], 10)
       continue
     }
 
     if (trimmed.startsWith('HiddenServiceDir')) continue
 
-    const portMatch = trimmed.match(/^HiddenServicePort (\d+)\s+\S+:(\d+)/)
-    if (portMatch && currentMeta) {
-      currentPorts.push({
-        external: parseInt(portMatch[1], 10),
-        internal: parseInt(portMatch[2], 10),
-      })
+    const portMatch = trimmed.match(/^HiddenServicePort (\d+)\s+(\S+)/)
+    if (portMatch && currentPackageId) {
+      const target = portMatch[2]
+      if (nextSslInternalPort !== null) {
+        currentPorts[portMatch[1]] = {
+          target,
+          ssl: true,
+          internalPort: nextSslInternalPort,
+        }
+        nextSslInternalPort = null
+      } else {
+        // For non-SSL, internalPort is the port from the target (host:port)
+        const colonIdx = target.lastIndexOf(':')
+        const internalPort = parseInt(target.slice(colonIdx + 1), 10)
+        currentPorts[portMatch[1]] = { target, ssl: false, internalPort }
+      }
       continue
     }
 
     let m
     if ((m = trimmed.match(/^ORPort (\d+)/))) {
-      flushCurrentService()
+      flushCurrent()
       relay.enabled = true
       relay.orPort = parseInt(m[1], 10)
     } else if ((m = trimmed.match(/^Nickname (.+)/))) {
@@ -149,7 +177,7 @@ function fromFile(raw: string): unknown {
     }
   }
 
-  flushCurrentService()
+  flushCurrent()
 
   return { onionServices, relay }
 }

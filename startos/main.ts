@@ -10,6 +10,7 @@ export const main = sdk.setupMain(async ({ effects }) => {
 
   const config = await torrc.read((s) => s).const(effects)
 
+  // Write torrc to subcontainer rootfs
   const torSub = await sdk.SubContainer.of(
     effects,
     { imageId: 'tor' },
@@ -22,18 +23,6 @@ export const main = sdk.setupMain(async ({ effects }) => {
     'tor-sub',
   )
 
-  // Write custom private keys for onion services that have them
-  const onionServices = config?.onionServices || {}
-  for (const [key, svc] of Object.entries(onionServices)) {
-    if (svc.privateKey) {
-      await sdk.volumes.tor.writeFile(
-        `hs_${key}/hs_ed25519_secret_key`,
-        Buffer.from(svc.privateKey, 'base64'),
-      )
-    }
-  }
-
-  // Write torrc to subcontainer rootfs
   await writeFile(
     `${torSub.rootfs}/etc/tor/torrc`,
     torrc.writeData(config || { onionServices: {}, relay: undefined }),
