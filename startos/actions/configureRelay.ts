@@ -1,4 +1,4 @@
-import { storeJson } from '../fileModels/store.json'
+import { torrc } from '../fileModels/torrc'
 import { i18n } from '../i18n'
 import { sdk } from '../sdk'
 
@@ -98,8 +98,8 @@ export const configureRelay = sdk.Action.withInput(
 
   // pre-fill form
   async ({ effects }) => {
-    const store = await storeJson.read().once()
-    const relay = store?.relay
+    const config = await torrc.read().once()
+    const relay = config?.relay
 
     return {
       enabled: relay?.enabled ?? false,
@@ -114,7 +114,7 @@ export const configureRelay = sdk.Action.withInput(
 
   // execution function
   async ({ effects, input }) => {
-    await storeJson.merge(effects, {
+    await torrc.merge(effects, {
       relay: {
         enabled: input.enabled,
         nickname: input.nickname ?? 'StartOSRelay',
