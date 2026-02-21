@@ -14,7 +14,7 @@ export const inputSpec = InputSpec.of({
           service: Value.dynamicUnion(async ({ effects }) => {
             const packages = await sdk.getInstalledPackages(effects)
 
-            const entries = await Promise.all(
+            const allEntries = await Promise.all(
               packages.map(async (packageId) => {
                 const title =
                   (await sdk
@@ -32,8 +32,13 @@ export const inputSpec = InputSpec.of({
                   )
                   .once()
 
+                if (iFaces.length === 0) return null
+
                 return getHostSpec(packageId, title, iFaces)
               }),
+            )
+            const entries = allEntries.filter(
+              (e): e is NonNullable<typeof e> => e !== null,
             )
 
             return {

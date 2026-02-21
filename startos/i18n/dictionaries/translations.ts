@@ -45,6 +45,7 @@ export default {
     44: 'Importar direcciones .onion de una instalación anterior',
     45: 'Direcciones',
     46: 'Dirección Onion',
+    47: 'Seleccione qué direcciones .onion importar',
   },
   de_DE: {
     0: 'Tor wird gestartet!',
@@ -90,6 +91,7 @@ export default {
     44: 'Onion-Adressen aus einer früheren Installation importieren',
     45: 'Adressen',
     46: 'Onion-Adresse',
+    47: 'Wählen Sie aus, welche .onion-Adressen importiert werden sollen',
   },
   pl_PL: {
     0: 'Uruchamianie Tor!',
@@ -135,6 +137,7 @@ export default {
     44: 'Importuj adresy .onion z poprzedniej instalacji',
     45: 'Adresy',
     46: 'Adres Onion',
+    47: 'Wybierz, które adresy .onion zaimportować',
   },
   fr_FR: {
     0: 'Démarrage de Tor !',
@@ -180,5 +183,6 @@ export default {
     44: "Importer les adresses .onion d'une installation précédente",
     45: 'Adresses',
     46: 'Adresse Onion',
+    47: 'Sélectionnez les adresses .onion à importer',
   },
 } satisfies Record<string, LangDict>

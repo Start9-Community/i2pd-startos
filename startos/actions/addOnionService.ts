@@ -40,14 +40,11 @@ const inputSpec = InputSpec.of({
   }),
 }).add(({ Value }) => ({
   address: Value.dynamicUnion(async ({ prefill }) => {
-    const { packageId, hostId, internalPort } =
-      prefill?.urlPluginMetadata ?? {}
+    const { packageId, hostId, internalPort } = prefill?.urlPluginMetadata ?? {}
 
     const config = await torrc.read().once()
     const entries =
-      (packageId &&
-        hostId &&
-        config?.onionServices?.[packageId]?.[hostId]) ||
+      (packageId && hostId && config?.onionServices?.[packageId]?.[hostId]) ||
       []
 
     // Determine the non-SSL target for this binding so we can check if it's already served
@@ -70,8 +67,8 @@ const inputSpec = InputSpec.of({
       // Skip if this entry already serves this binding (non-SSL)
       if (
         nonSslTarget &&
-        Object.values(entries[i].ports).some(
-          (p) => !p.ssl && p.target === nonSslTarget,
+        Object.values(entries[i].ports).every(
+          (p) => p.ssl || p.target !== nonSslTarget,
         )
       )
         continue
@@ -194,8 +191,7 @@ export const addOnionService = sdk.Action.withInput(
     const config = await torrc.read().once()
     const onionServices = structuredClone(config?.onionServices || {})
     if (!onionServices[packageId]) onionServices[packageId] = {}
-    if (!onionServices[packageId][hostId])
-      onionServices[packageId][hostId] = []
+    if (!onionServices[packageId][hostId]) onionServices[packageId][hostId] = []
 
     const services = onionServices[packageId][hostId]
 

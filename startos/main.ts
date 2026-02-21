@@ -1,14 +1,26 @@
-import { writeFile } from 'node:fs/promises'
+import { mkdir, writeFile } from 'node:fs/promises'
 import { connect } from 'node:net'
 import { i18n } from './i18n'
 import { sdk } from './sdk'
-import { torrc } from './fileModels/torrc'
+import { hsDir, torrc } from './fileModels/torrc'
 import type { HealthCheckResult } from '@start9labs/start-sdk/package/lib/health/checkFns'
 
 export const main = sdk.setupMain(async ({ effects }) => {
   console.info('Starting Tor!')
 
   const config = await torrc.read((s) => s).const(effects)
+
+  // Create hidden service directories on the volume before Tor starts
+  const onionServices = config?.onionServices || {}
+  for (const [packageId, hosts] of Object.entries(onionServices)) {
+    for (const [hostId, services] of Object.entries(hosts)) {
+      for (let i = 0; i < services.length; i++) {
+        await mkdir(sdk.volumes.tor.subpath(hsDir(packageId, hostId, i)), {
+          recursive: true,
+        })
+      }
+    }
+  }
 
   // Write torrc to subcontainer rootfs
   const torSub = await sdk.SubContainer.of(
@@ -32,7 +44,11 @@ export const main = sdk.setupMain(async ({ effects }) => {
     .addOneshot('chown', {
       subcontainer: torSub,
       exec: {
-        command: ['sh', '-c', 'chmod 700 /var/lib/tor && chown -R tor:tor /var/lib/tor'],
+        command: [
+          'sh',
+          '-c',
+          'chmod -R 700 /var/lib/tor && chown -R tor:tor /var/lib/tor',
+        ],
         user: 'root',
       },
       requires: [],

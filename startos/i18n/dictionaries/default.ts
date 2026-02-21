@@ -44,6 +44,7 @@ const dict = {
   'Import .onion addresses from a previous installation': 44,
   Addresses: 45,
   'Onion Address': 46,
+  'Select which .onion addresses to import': 47,
 } as const
 
 export type I18nKey = keyof typeof dict

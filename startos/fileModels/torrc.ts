@@ -1,36 +1,32 @@
-import { FileHelper, matches } from '@start9labs/start-sdk'
+import { FileHelper, z } from '@start9labs/start-sdk'
 import { sdk } from '../sdk'
 
-const { arrayOf, object, string, number, boolean, dictionary } = matches
-
-const portInfoShape = object({
-  target: string,
-  ssl: boolean,
-  internalPort: number,
+const portInfoShape = z.object({
+  target: z.string(),
+  ssl: z.boolean(),
+  internalPort: z.number(),
 })
 
-export const onionServiceEntryShape = object({
-  ports: dictionary([string, portInfoShape]),
+export const onionServiceEntryShape = z.object({
+  ports: z.record(z.string(), portInfoShape),
 })
 
-export const relayShape = object({
-  enabled: boolean.optional().onMismatch(false),
-  nickname: string.optional().onMismatch('StartOSRelay'),
-  contactInfo: string.optional().onMismatch(''),
-  bridge: boolean.optional().onMismatch(false),
-  orPort: number.optional().onMismatch(9001),
-  bandwidthRate: string.optional().onMismatch('1 MBytes'),
-  bandwidthBurst: string.optional().onMismatch('2 MBytes'),
+export const relayShape = z.object({
+  enabled: z.boolean().optional().catch(undefined),
+  nickname: z.string().optional().catch(undefined),
+  contactInfo: z.string().optional().catch(undefined),
+  bridge: z.boolean().optional().catch(undefined),
+  orPort: z.number().optional().catch(undefined),
+  bandwidthRate: z.string().optional().catch(undefined),
+  bandwidthBurst: z.string().optional().catch(undefined),
 })
 
-const shape = object({
-  onionServices: dictionary([
-    string,
-    dictionary([string, arrayOf(onionServiceEntryShape)]),
-  ])
+const shape = z.object({
+  onionServices: z
+    .record(z.string(), z.record(z.string(), z.array(onionServiceEntryShape)))
     .optional()
-    .onMismatch({}),
-  relay: relayShape.optional().onMismatch({
+    .catch({}),
+  relay: relayShape.optional().catch({
     enabled: false,
     nickname: 'StartOSRelay',
     contactInfo: '',
@@ -41,10 +37,10 @@ const shape = object({
   }),
 })
 
-export type TorrcConfig = typeof shape._TYPE
+export type TorrcConfig = z.infer<typeof shape>
 
 export function hsDir(packageId: string, hostId: string, index: number) {
-  return `hs_${packageId}_${hostId}_${index}`
+  return `hidden_services/${packageId}/${hostId}/hs_${index}`
 }
 
 function toFile(config: TorrcConfig): string {
@@ -64,8 +60,7 @@ function toFile(config: TorrcConfig): string {
           `HiddenServiceDir /var/lib/tor/${hsDir(packageId, hostId, index)}/`,
         )
         for (const [externalPort, portInfo] of Object.entries(svc.ports)) {
-          if (portInfo.ssl)
-            lines.push(`# @ssl ${portInfo.internalPort}`)
+          if (portInfo.ssl) lines.push(`# @ssl ${portInfo.internalPort}`)
           lines.push(`HiddenServicePort ${externalPort} ${portInfo.target}`)
         }
         lines.push('')
@@ -107,8 +102,7 @@ function fromFile(raw: string): unknown {
       currentHostId &&
       Object.keys(currentPorts).length > 0
     ) {
-      if (!onionServices[currentPackageId])
-        onionServices[currentPackageId] = {}
+      if (!onionServices[currentPackageId]) onionServices[currentPackageId] = {}
       if (!onionServices[currentPackageId][currentHostId])
         onionServices[currentPackageId][currentHostId] = []
       onionServices[currentPackageId][currentHostId].push({
@@ -186,5 +180,5 @@ export const torrc = FileHelper.raw(
   { base: sdk.volumes.tor, subpath: '/torrc' },
   toFile,
   fromFile,
-  (data) => shape.unsafeCast(data),
+  (data) => shape.parse(data),
 )

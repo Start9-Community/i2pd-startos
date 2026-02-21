@@ -11,7 +11,7 @@ export const manifest = setupManifest({
   donationUrl: 'https://donate.torproject.org/',
   docsUrls: ['https://community.torproject.org/onion-services/'],
   description: i18n.description,
-  volumes: ['tor', 'start9'],
+  volumes: ['tor', 'startos'],
   images: {
     tor: {
       source: { dockerBuild: {} },
