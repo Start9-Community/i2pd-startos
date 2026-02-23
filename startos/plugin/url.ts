@@ -17,8 +17,7 @@ export const exportUrls = sdk.plugin.url.setupExportedUrls(
 
     for (const [packageId, hosts] of Object.entries(onionServices)) {
       for (const [hostId, services] of Object.entries(hosts)) {
-        for (let i = 0; i < services.length; i++) {
-          const svc = services[i]
+        for (const [i, svc] of Object.entries(services)) {
           const hostnameFile = FileHelper.string({
             base: sdk.volumes.tor,
             subpath: `${hsDir(packageId, hostId, i)}/hostname`,

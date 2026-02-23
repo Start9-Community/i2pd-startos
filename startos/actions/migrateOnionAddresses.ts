@@ -1,5 +1,5 @@
 import { FileHelper, z } from '@start9labs/start-sdk'
-import { hsDir, torrc } from '../fileModels/torrc'
+import { hsDir, nextKey, torrc } from '../fileModels/torrc'
 import { i18n } from '../i18n'
 import { sdk } from '../sdk'
 import { rename } from 'fs/promises'
@@ -159,20 +159,24 @@ export const migrateOnionAddresses = sdk.Action.withInput(
 
       if (!onionServices[packageId]) onionServices[packageId] = {}
       if (!onionServices[packageId][hostId])
-        onionServices[packageId][hostId] = []
+        onionServices[packageId][hostId] = {}
 
-      const index = onionServices[packageId][hostId].length
-      onionServices[packageId][hostId].push({ ports })
+      const entryKey = nextKey(onionServices[packageId][hostId])
+      onionServices[packageId][hostId][entryKey] = { ports }
 
       const header = Buffer.from('== ed25519v1-secret: type0 ==\x00\x00\x00')
       const keyBytes = Buffer.from(key, 'base64')
       await sdk.volumes.tor.writeFile(
-        `${hsDir(packageId, hostId, index)}/hs_ed25519_secret_key`,
+        `${hsDir(packageId, hostId, entryKey)}/hs_ed25519_secret_key`,
         Buffer.concat([header, keyBytes]),
       )
     }
 
-    await torrc.write(effects, { ...config, onionServices })
+    await torrc.write(effects, {
+      ...config,
+      relay: config?.relay ?? { enabled: false },
+      onionServices,
+    })
     await rename(
       migrationFile.path,
       sdk.volumes.startos.subpath('.onion-migration.json.bak'),

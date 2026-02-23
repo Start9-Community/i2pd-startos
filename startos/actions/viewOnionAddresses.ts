@@ -11,7 +11,9 @@ export const viewOnionAddresses = sdk.Action.withoutInput(
     const store = await torrc.read().const(effects)
     const onionServices = store?.onionServices || {}
     const hasServices = Object.values(onionServices).some((hosts) =>
-      Object.values(hosts).some((services) => services.length > 0),
+      Object.values(hosts).some(
+        (services) => Object.keys(services).length > 0,
+      ),
     )
 
     return {
@@ -34,11 +36,11 @@ export const viewOnionAddresses = sdk.Action.withoutInput(
     const entries = await Promise.all(
       Object.entries(onionServices).flatMap(([packageId, hosts]) =>
         Object.entries(hosts).flatMap(([hostId, services]) =>
-          services.map(async (svc, index) => {
+          Object.entries(services).map(async ([key, svc]) => {
             let hostname = '<pending>'
             try {
               const content = await sdk.volumes.tor.readFile(
-                `${hsDir(packageId, hostId, index)}/hostname`,
+                `${hsDir(packageId, hostId, key)}/hostname`,
               )
               hostname = content.toString().trim()
             } catch {

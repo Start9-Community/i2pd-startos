@@ -1,4 +1,4 @@
-import { torrc } from '../fileModels/torrc'
+import { nextKey, torrc } from '../fileModels/torrc'
 import { i18n } from '../i18n'
 import { sdk } from '../sdk'
 
@@ -93,7 +93,7 @@ export const manageOnionServices = sdk.Action.withInput(
 
     for (const [packageId, hosts] of Object.entries(onionServices)) {
       for (const [hostId, entries] of Object.entries(hosts)) {
-        for (const _entry of entries) {
+        for (const _key of Object.keys(entries)) {
           services.push({
             service: {
               selection: packageId,
@@ -115,12 +115,15 @@ export const manageOnionServices = sdk.Action.withInput(
       string,
       Record<
         string,
-        {
-          ports: Record<
-            string,
-            { target: string; ssl: boolean; internalPort: number }
-          >
-        }[]
+        Record<
+          string,
+          {
+            ports: Record<
+              string,
+              { target: string; ssl: boolean; internalPort: number }
+            >
+          }
+        >
       >
     > = {}
 
@@ -176,13 +179,18 @@ export const manageOnionServices = sdk.Action.withInput(
 
         if (!onionServices[packageId]) onionServices[packageId] = {}
         if (!onionServices[packageId][hostId])
-          onionServices[packageId][hostId] = []
-        onionServices[packageId][hostId].push({ ports })
+          onionServices[packageId][hostId] = {}
+        const key = nextKey(onionServices[packageId][hostId])
+        onionServices[packageId][hostId][key] = { ports }
       }),
     )
 
     const config = await torrc.read().once()
-    await torrc.write(effects, { ...config, onionServices })
+    await torrc.write(effects, {
+      ...config,
+      relay: config?.relay ?? { enabled: false },
+      onionServices,
+    })
   },
 )
 

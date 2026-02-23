@@ -12,7 +12,7 @@ export const onionServiceEntryShape = z.object({
 })
 
 export const relayShape = z.object({
-  enabled: z.boolean().optional().catch(undefined),
+  enabled: z.boolean().catch(false),
   nickname: z.string().optional().catch(undefined),
   contactInfo: z.string().optional().catch(undefined),
   bridge: z.boolean().optional().catch(undefined),
@@ -23,24 +23,27 @@ export const relayShape = z.object({
 
 const shape = z.object({
   onionServices: z
-    .record(z.string(), z.record(z.string(), z.array(onionServiceEntryShape)))
-    .optional()
+    .record(
+      z.string(),
+      z.record(z.string(), z.record(z.string(), onionServiceEntryShape)),
+    )
     .catch({}),
-  relay: relayShape.optional().catch({
-    enabled: false,
-    nickname: 'StartOSRelay',
-    contactInfo: '',
-    bridge: false,
-    orPort: 9001,
-    bandwidthRate: '1 MBytes',
-    bandwidthBurst: '2 MBytes',
-  }),
+  relay: relayShape.catch({ enabled: false }),
 })
 
 export type TorrcConfig = z.infer<typeof shape>
 
-export function hsDir(packageId: string, hostId: string, index: number) {
+export function hsDir(packageId: string, hostId: string, index: string) {
   return `hidden_services/${packageId}/${hostId}/hs_${index}`
+}
+
+export function nextKey(record: Record<string, unknown>): string {
+  return String(
+    Object.keys(record)
+      .map(Number)
+      .filter((n) => !isNaN(n))
+      .reduce((acc, x) => (x >= acc ? x + 1 : acc), 0),
+  )
 }
 
 function toFile(config: TorrcConfig): string {
@@ -54,7 +57,7 @@ function toFile(config: TorrcConfig): string {
   const onionServices = config.onionServices || {}
   for (const [packageId, hosts] of Object.entries(onionServices)) {
     for (const [hostId, services] of Object.entries(hosts)) {
-      services.forEach((svc, index) => {
+      Object.entries(services).forEach(([index, svc]) => {
         lines.push(`# @service ${packageId} ${hostId}`)
         lines.push(
           `HiddenServiceDir /var/lib/tor/${hsDir(packageId, hostId, index)}/`,
@@ -84,12 +87,15 @@ function toFile(config: TorrcConfig): string {
 }
 
 function fromFile(raw: string): unknown {
-  const onionServices: Record<string, Record<string, unknown[]>> = {}
-  const relay: Record<string, unknown> = {}
+  const res: z.infer<typeof shape> = {
+    onionServices: {},
+    relay: { enabled: false },
+  }
 
   const lines = raw.split('\n')
   let currentPackageId: string | null = null
   let currentHostId: string | null = null
+  let currentIndex: string | null = null
   let currentPorts: Record<
     string,
     { target: string; ssl: boolean; internalPort: number }
@@ -100,17 +106,20 @@ function fromFile(raw: string): unknown {
     if (
       currentPackageId &&
       currentHostId &&
+      currentIndex &&
       Object.keys(currentPorts).length > 0
     ) {
-      if (!onionServices[currentPackageId]) onionServices[currentPackageId] = {}
-      if (!onionServices[currentPackageId][currentHostId])
-        onionServices[currentPackageId][currentHostId] = []
-      onionServices[currentPackageId][currentHostId].push({
+      if (!res.onionServices[currentPackageId])
+        res.onionServices[currentPackageId] = {}
+      if (!res.onionServices[currentPackageId][currentHostId])
+        res.onionServices[currentPackageId][currentHostId] = {}
+      res.onionServices[currentPackageId][currentHostId][currentIndex] = {
         ports: currentPorts,
-      })
+      }
     }
     currentPackageId = null
     currentHostId = null
+    currentIndex = null
     currentPorts = {}
     nextSslInternalPort = null
   }
@@ -132,7 +141,11 @@ function fromFile(raw: string): unknown {
       continue
     }
 
-    if (trimmed.startsWith('HiddenServiceDir')) continue
+    const hsDirMatch = trimmed.match(/\/hs_([^/]+)\/?$/)
+    if (trimmed.startsWith('HiddenServiceDir') && hsDirMatch) {
+      currentIndex = hsDirMatch[1]
+      continue
+    }
 
     const portMatch = trimmed.match(/^HiddenServicePort (\d+)\s+(\S+)/)
     if (portMatch && currentPackageId) {
@@ -156,24 +169,24 @@ function fromFile(raw: string): unknown {
     let m
     if ((m = trimmed.match(/^ORPort (\d+)/))) {
       flushCurrent()
-      relay.enabled = true
-      relay.orPort = parseInt(m[1], 10)
+      res.relay.enabled = true
+      res.relay.orPort = parseInt(m[1], 10)
     } else if ((m = trimmed.match(/^Nickname (.+)/))) {
-      relay.nickname = m[1]
+      res.relay.nickname = m[1]
     } else if ((m = trimmed.match(/^ContactInfo (.+)/))) {
-      relay.contactInfo = m[1]
+      res.relay.contactInfo = m[1]
     } else if (trimmed === 'BridgeRelay 1') {
-      relay.bridge = true
+      res.relay.bridge = true
     } else if ((m = trimmed.match(/^RelayBandwidthRate (.+)/))) {
-      relay.bandwidthRate = m[1]
+      res.relay.bandwidthRate = m[1]
     } else if ((m = trimmed.match(/^RelayBandwidthBurst (.+)/))) {
-      relay.bandwidthBurst = m[1]
+      res.relay.bandwidthBurst = m[1]
     }
   }
 
   flushCurrent()
 
-  return { onionServices, relay }
+  return res
 }
 
 export const torrc = FileHelper.raw(

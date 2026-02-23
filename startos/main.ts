@@ -14,7 +14,7 @@ export const main = sdk.setupMain(async ({ effects }) => {
   const onionServices = config?.onionServices || {}
   for (const [packageId, hosts] of Object.entries(onionServices)) {
     for (const [hostId, services] of Object.entries(hosts)) {
-      for (let i = 0; i < services.length; i++) {
+      for (const i of Object.keys(services)) {
         await mkdir(sdk.volumes.tor.subpath(hsDir(packageId, hostId, i)), {
           recursive: true,
         })
@@ -37,7 +37,7 @@ export const main = sdk.setupMain(async ({ effects }) => {
 
   await writeFile(
     `${torSub.rootfs}/etc/tor/torrc`,
-    torrc.writeData(config || { onionServices: {}, relay: undefined }),
+    torrc.writeData(config || { onionServices: {}, relay: { enabled: false } }),
   )
 
   return sdk.Daemons.of(effects)

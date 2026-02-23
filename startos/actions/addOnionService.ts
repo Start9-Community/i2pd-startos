@@ -1,4 +1,4 @@
-import { hsDir, torrc } from '../fileModels/torrc'
+import { hsDir, nextKey, torrc } from '../fileModels/torrc'
 import { i18n } from '../i18n'
 import { sdk } from '../sdk'
 
@@ -45,7 +45,7 @@ const inputSpec = InputSpec.of({
     const config = await torrc.read().once()
     const entries =
       (packageId && hostId && config?.onionServices?.[packageId]?.[hostId]) ||
-      []
+      {}
 
     // Determine the non-SSL target for this binding so we can check if it's already served
     let nonSslTarget: string | undefined
@@ -63,26 +63,26 @@ const inputSpec = InputSpec.of({
       }
     > = {}
 
-    for (let i = 0; i < entries.length; i++) {
+    for (const [key, entry] of Object.entries(entries)) {
       // Skip if this entry already serves this binding (non-SSL)
       if (
         nonSslTarget &&
-        Object.values(entries[i].ports).every(
+        Object.values(entry.ports).every(
           (p) => p.ssl || p.target !== nonSslTarget,
         )
       )
         continue
 
-      let hostname = String(i)
+      let hostname = key
       try {
         const content = await sdk.volumes.tor.readFile(
-          `${hsDir(packageId!, hostId!, i)}/hostname`,
+          `${hsDir(packageId!, hostId!, key)}/hostname`,
         )
         hostname = content.toString().trim()
       } catch {
         // hostname file doesn't exist yet
       }
-      variants[String(i)] = {
+      variants[key] = {
         name: hostname,
         spec: InputSpec.of({}),
       }
@@ -191,33 +191,36 @@ export const addOnionService = sdk.Action.withInput(
     const config = await torrc.read().once()
     const onionServices = structuredClone(config?.onionServices || {})
     if (!onionServices[packageId]) onionServices[packageId] = {}
-    if (!onionServices[packageId][hostId]) onionServices[packageId][hostId] = []
+    if (!onionServices[packageId][hostId]) onionServices[packageId][hostId] = {}
 
     const services = onionServices[packageId][hostId]
 
     if (address.selection !== 'new') {
-      // Reuse existing address at index
-      const index = parseInt(address.selection, 10)
-      const existing = services[index]
+      // Reuse existing address by key
+      const existing = services[address.selection]
       if (existing) {
-        services[index] = {
+        services[address.selection] = {
           ports: { ...existing.ports, ...newPorts },
         }
       }
     } else {
       // Create new entry
-      const index = services.length
-      services.push({ ports: newPorts })
+      const key = nextKey(services)
+      services[key] = { ports: newPorts }
 
       // Write private key if provided
       if (address.value.privateKey) {
         await sdk.volumes.tor.writeFile(
-          `${hsDir(packageId, hostId, index)}/hs_ed25519_secret_key`,
+          `${hsDir(packageId, hostId, key)}/hs_ed25519_secret_key`,
           Buffer.from(address.value.privateKey, 'base64'),
         )
       }
     }
 
-    await torrc.write(effects, { ...config, onionServices })
+    await torrc.write(effects, {
+      ...config,
+      relay: config?.relay ?? { enabled: false },
+      onionServices,
+    })
   },
 )
