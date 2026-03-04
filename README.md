@@ -7,7 +7,7 @@
 > **Upstream docs:** <https://community.torproject.org/onion-services/>
 >
 > Everything not listed in this document should behave the same as upstream
-> Tor 0.4.8. If a feature, setting, or behavior is not mentioned here, the
+> Tor. If a feature, setting, or behavior is not mentioned here, the
 > upstream documentation is accurate and fully applicable.
 
 Anonymity network for onion services and private browsing. Run onion services
@@ -205,9 +205,7 @@ configuration UI.
 
 ```yaml
 package_id: tor
-upstream_version: '0.4.8'
-startos_version: '0.4.8.0.b0'
-image: alpine:3.21 + tor package
+image: Alpine Linux + tor package
 architectures: [x86_64, aarch64, riscv64]
 volumes:
   tor: /var/lib/tor
