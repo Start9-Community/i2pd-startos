@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="icon.svg" alt="Tor Logo" width="21%">
+</p>
+
 # Tor on StartOS
 
 > **Upstream docs:** <https://community.torproject.org/onion-services/>
@@ -34,12 +38,12 @@ Tor relay or bridge to support the network.
 
 ## Image and Container Runtime
 
-| Property      | Value                                      |
-| ------------- | ------------------------------------------ |
+| Property      | Value                                         |
+| ------------- | --------------------------------------------- |
 | Base image    | Alpine Linux 3.21 with upstream `tor` package |
-| Architectures | x86_64, aarch64, riscv64                   |
-| Entrypoint    | `tor -f /etc/tor/torrc`                    |
-| User          | `tor` (non-root)                           |
+| Architectures | x86_64, aarch64, riscv64                      |
+| Entrypoint    | `tor -f /etc/tor/torrc`                       |
+| User          | `tor` (non-root)                              |
 
 The image is minimal -- just Alpine + the `tor` package. No custom patches
 or modifications to the Tor binary.
@@ -48,9 +52,9 @@ or modifications to the Tor binary.
 
 ## Volume and Data Layout
 
-| Volume | Mount Point     | Contents                                          |
-| ------ | --------------- | ------------------------------------------------- |
-| `tor`  | `/var/lib/tor`  | Tor data directory, onion service keys, control socket |
+| Volume | Mount Point    | Contents                                               |
+| ------ | -------------- | ------------------------------------------------------ |
+| `tor`  | `/var/lib/tor` | Tor data directory, onion service keys, control socket |
 
 The `torrc` configuration file is stored on the `tor` volume and is the single
 source of truth for all onion service and relay settings. It is generated from
@@ -77,14 +81,14 @@ Onion service keys are stored under `/var/lib/tor/hs_<key>/` where `<key>` is
 All configuration is managed through StartOS actions. There is no upstream
 configuration UI.
 
-| Setting                | Managed By     | Method                        |
-| ---------------------- | -------------- | ----------------------------- |
-| Onion services         | StartOS action | Manage Onion Services         |
-| Relay/bridge settings  | StartOS action | Configure Relay               |
-| SOCKS proxy port       | Hardcoded      | Always `0.0.0.0:9050`         |
-| Data directory         | Hardcoded      | Always `/var/lib/tor`         |
-| Control socket         | Hardcoded      | `/var/lib/tor/control.sock`   |
-| Exit relay             | Hardcoded      | Always disabled               |
+| Setting               | Managed By     | Method                      |
+| --------------------- | -------------- | --------------------------- |
+| Onion services        | StartOS action | Manage Onion Services       |
+| Relay/bridge settings | StartOS action | Configure Relay             |
+| SOCKS proxy port      | Hardcoded      | Always `0.0.0.0:9050`       |
+| Data directory        | Hardcoded      | Always `/var/lib/tor`       |
+| Control socket        | Hardcoded      | `/var/lib/tor/control.sock` |
+| Exit relay            | Hardcoded      | Always disabled             |
 
 ---
 
@@ -201,8 +205,8 @@ configuration UI.
 
 ```yaml
 package_id: tor
-upstream_version: "0.4.8"
-startos_version: "0.4.8.0.b0"
+upstream_version: '0.4.8'
+startos_version: '0.4.8.0.b0'
 image: alpine:3.21 + tor package
 architectures: [x86_64, aarch64, riscv64]
 volumes:
