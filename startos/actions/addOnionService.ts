@@ -113,7 +113,7 @@ export const addOnionService = sdk.Action.withInput(
   // input spec
   async ({ effects, prefill }) => {
     const p = prefill as typeof inputSpec._PARTIAL
-    let noSsl = true
+    let noSsl = false
 
     if (p?.urlPluginMetadata?.packageId && p.urlPluginMetadata.interfaceId) {
       const iface = await sdk.serviceInterface
