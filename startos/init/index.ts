@@ -6,10 +6,12 @@ import { actions } from '../actions'
 import { restoreInit } from '../backups'
 import { registerUrlPlugin, exportUrls } from '../plugin/url'
 import { migrateOnionAddresses } from './migrateOnionAddresses'
+import { seedTorrc } from './seedTorrc'
 
 export const init = sdk.setupInit(
   restoreInit,
   versionGraph,
+  seedTorrc,
   setInterfaces,
   setDependencies,
   actions,
