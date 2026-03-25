@@ -1,0 +1,63 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    strategy:
+      matrix:
+        include:
+          - arch: x86_64
+            start_cli_arch: x86_64-linux
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install start-cli
+        run: |
+          CLI_VERSION="v0.4.0-alpha.22"
+          curl -fsSL "https://github.com/Start9Labs/start-os/releases/download/${CLI_VERSION}/start-cli_${{ matrix.start_cli_arch }}" -o /usr/local/bin/start-cli
+          chmod +x /usr/local/bin/start-cli
+          start-cli --version
+
+      - name: Initialize developer key
+        run: start-cli init-key
+
+      - name: Build s9pk
+        run: make ${{ matrix.arch }}
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: i2p_${{ matrix.arch }}.s9pk
+          path: i2p_${{ matrix.arch }}.s9pk
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/*.s9pk
+          generate_release_notes: true
+          prerelease: true
