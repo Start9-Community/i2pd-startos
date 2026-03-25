@@ -5,6 +5,10 @@ on:
     tags:
       - 'v*'
 
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -67,13 +71,8 @@ jobs:
           path: artifacts
           merge-multiple: true
 
-      - name: Delete existing release if present
-        run: |
-          TAG="${GITHUB_REF#refs/tags/}"
-          gh release delete "$TAG" --yes --cleanup-tag=false 2>/dev/null || true
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GH_REPO: ${{ github.repository }}
+      - name: List downloaded artifacts
+        run: ls -la artifacts/
 
       - name: Create release
         uses: softprops/action-gh-release@v2
@@ -83,3 +82,4 @@ jobs:
           files: artifacts/*.s9pk
           generate_release_notes: true
           prerelease: true
+          make_latest: true
