@@ -1,96 +1,87 @@
+import * as http from 'http'
 import type { HealthCheckResult } from '@start9labs/start-sdk/package/lib/health/checkFns'
-import { connect } from 'node:net'
-import { torrc } from './fileModels/torrc'
 import { i18n } from './i18n'
 import { sdk } from './sdk'
 
 export const main = sdk.setupMain(async ({ effects }) => {
-  console.info('Starting Tor!')
+  console.info('Starting I2Pd!')
 
-  await torrc.read().const(effects)
-
-  const torSub = await sdk.SubContainer.of(
+  const i2pdSub = await sdk.SubContainer.of(
     effects,
-    { imageId: 'tor' },
+    { imageId: 'i2pd' },
     sdk.Mounts.of().mountVolume({
-      volumeId: 'tor',
+      volumeId: 'i2pd',
       subpath: null,
-      mountpoint: '/var/lib/tor',
+      mountpoint: '/var/lib/i2pd',
       readonly: false,
     }),
-    'tor-sub',
+    'i2pd-sub',
   )
 
   return (
     sdk.Daemons.of(effects)
-      // Fix ownership before the daemon starts — the volume is created as root
-      // but Tor runs as the 'tor' user and requires 700 permissions on its data dir
-      .addOneshot('chown', {
-        subcontainer: torSub,
+      // Fix permissions before the daemon starts — the volume is created as root
+      // but I2Pd runs as the 'i2pd' user
+      .addOneshot('fix-perms', {
+        subcontainer: i2pdSub,
         exec: {
           command: [
             'sh',
             '-c',
-            'chmod -R 700 /var/lib/tor && chown -R tor:tor /var/lib/tor',
+            'chmod -R 755 /var/lib/i2pd && chown -R i2pd:i2pd /var/lib/i2pd',
           ],
           user: 'root',
         },
         requires: [],
       })
-      .addDaemon('tor', {
-        subcontainer: torSub,
+      .addDaemon('i2pd', {
+        subcontainer: i2pdSub,
         exec: {
-          // Read torrc directly from the volume instead of the default /etc/tor/torrc
-          command: ['tor', '-f', '/var/lib/tor/torrc'],
+          // Shell wrapper traps SIGTERM to trigger i2pd's graceful shutdown.
+          // Graceful shutdown announces tunnel withdrawal so peers stop routing
+          // to our tunnels immediately, instead of timing out for ~10 minutes.
+          command: [
+            'sh',
+            '-c',
+            'i2pd --conf=/var/lib/i2pd/i2pd.conf --datadir=/var/lib/i2pd & PID=$!; trap "wget -q -O /dev/null http://127.0.0.1:7070/?cmd=shutdown_graceful 2>/dev/null || kill $PID 2>/dev/null; wait $PID; exit 0" TERM; wait $PID',
+          ],
         },
         ready: {
-          display: i18n('Tor SOCKS Proxy'),
+          display: i18n('I2P Network'),
           fn: checkBootstrap,
         },
-        requires: ['chown'],
+        requires: ['fix-perms'],
       })
   )
 })
 
 /**
- * Queries Tor's control socket for bootstrap progress.
- * No password is needed — the Unix socket is protected by file permissions (700).
+ * Checks I2Pd's HTTP API on 127.0.0.1:7070.
+ * Uses http.request (not fetch) — Node.js 20 undici sends lowercase header
+ * names which i2pd rejects with 403 "host mismatch".
+ * http.request sends a capitalized Host header and gets 200 OK.
  */
 function checkBootstrap(): Promise<HealthCheckResult> {
   return new Promise((resolve) => {
-    const socket = connect(sdk.volumes.tor.subpath('control.sock'))
-    let data = ''
-
-    socket.setTimeout(5000)
-    socket.on('connect', () => {
-      socket.write('AUTHENTICATE\r\nGETINFO status/bootstrap-phase\r\nQUIT\r\n')
+    const req = http.request(
+      { host: '127.0.0.1', port: 7070, path: '/', method: 'GET' },
+      (res) => {
+        res.resume() // drain response body
+        if (res.statusCode === 200) {
+          resolve({ result: 'success', message: i18n('I2Pd is running') })
+        } else {
+          resolve({ result: 'failure', message: i18n('I2Pd HTTP API error') })
+        }
+      },
+    )
+    req.setTimeout(5000, () => {
+      req.destroy()
+      resolve({ result: 'failure', message: i18n('I2Pd is not responding') })
     })
-    socket.on('data', (chunk) => {
-      data += chunk.toString()
+    req.on('error', () => {
+      // ECONNREFUSED means i2pd hasn't opened the webconsole yet — still starting
+      resolve({ result: 'loading', message: i18n('I2Pd is starting up') })
     })
-    socket.on('end', () => {
-      const match = data.match(/BOOTSTRAP PROGRESS=(\d+).*?SUMMARY="([^"]*)"/)
-      if (!match) {
-        resolve({ result: 'failure', message: i18n('Tor is not ready') })
-        return
-      }
-      const progress = parseInt(match[1], 10)
-      const summary = match[2]
-      if (progress >= 100) {
-        resolve({ result: 'success', message: i18n('Tor is running') })
-      } else {
-        resolve({
-          result: 'loading',
-          message: `Bootstrapping: ${progress}% - ${summary}`,
-        })
-      }
-    })
-    socket.on('error', () => {
-      resolve({ result: 'failure', message: i18n('Tor is not ready') })
-    })
-    socket.on('timeout', () => {
-      socket.destroy()
-      resolve({ result: 'failure', message: i18n('Tor is not ready') })
-    })
+    req.end()
   })
 }

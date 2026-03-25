@@ -1,36 +1,36 @@
 export default {
   alertUninstall: {
     en_US:
-      'Uninstalling Tor will permanently delete all onion service keys and .onion addresses. Services that depend on these addresses will no longer be reachable over Tor. Please make a backup first if you want to preserve your addresses.',
+      'Uninstalling I2P will permanently delete all I2P tunnel keys and .b32.i2p addresses. Services that depend on these addresses will no longer be reachable over I2P. Please make a backup first if you want to preserve your addresses.',
     es_ES:
-      'Desinstalar Tor eliminará permanentemente todas las claves de servicios onion y direcciones .onion. Los servicios que dependen de estas direcciones ya no serán accesibles a través de Tor. Haga una copia de seguridad primero si desea preservar sus direcciones.',
+      'Desinstalar I2P eliminará permanentemente todas las claves de túnel I2P y direcciones .b32.i2p. Los servicios que dependen de estas direcciones ya no serán accesibles a través de I2P. Haga una copia de seguridad primero si desea preservar sus direcciones.',
     de_DE:
-      'Die Deinstallation von Tor löscht dauerhaft alle Onion-Dienst-Schlüssel und .onion-Adressen. Dienste, die von diesen Adressen abhängen, sind nicht mehr über Tor erreichbar. Bitte erstellen Sie zuerst ein Backup, wenn Sie Ihre Adressen bewahren möchten.',
+      'Die Deinstallation von I2P löscht dauerhaft alle I2P-Tunnelschlüssel und .b32.i2p-Adressen. Dienste, die von diesen Adressen abhängen, sind nicht mehr über I2P erreichbar. Bitte erstellen Sie zuerst ein Backup, wenn Sie Ihre Adressen bewahren möchten.',
     pl_PL:
-      'Odinstalowanie Tor trwale usunie wszystkie klucze usług onion i adresy .onion. Usługi zależne od tych adresów nie będą już dostępne przez Tor. Wykonaj kopię zapasową, jeśli chcesz zachować swoje adresy.',
+      'Odinstalowanie I2P trwale usunie wszystkie klucze tunelu I2P i adresy .b32.i2p. Usługi zależne od tych adresów nie będą już dostępne przez I2P. Wykonaj kopię zapasową, jeśli chcesz zachować swoje adresy.',
     fr_FR:
-      "La désinstallation de Tor supprimera définitivement toutes les clés de services onion et adresses .onion. Les services qui dépendent de ces adresses ne seront plus accessibles via Tor. Veuillez d'abord effectuer une sauvegarde si vous souhaitez conserver vos adresses.",
+      "La désinstallation d'I2P supprimera définitivement toutes les clés de tunnel I2P et adresses .b32.i2p. Les services qui dépendent de ces adresses ne seront plus accessibles via I2P. Veuillez d'abord effectuer une sauvegarde si vous souhaitez conserver vos adresses.",
   },
   description: {
     short: {
-      en_US: 'Anonymity network for onion services and private browsing',
-      es_ES: 'Red de anonimato para servicios onion y navegación privada',
-      de_DE: 'Anonymitätsnetzwerk für Onion-Dienste und privates Surfen',
-      pl_PL: 'Sieć anonimowości dla usług onion i prywatnego przeglądania',
+      en_US: 'Peer-to-peer network for I2P services and decentralized applications',
+      es_ES: 'Red punto a punto para servicios I2P y aplicaciones descentralizadas',
+      de_DE: 'Peer-to-Peer-Netzwerk für I2P-Dienste und dezentrale Anwendungen',
+      pl_PL: 'Sieć peer-to-peer dla usług I2P i aplikacji zdecentralizowanych',
       fr_FR:
-        "Réseau d'anonymat pour les services onion et la navigation privée",
+        'Réseau pair-à-pair pour les services I2P et les applications décentralisées',
     },
     long: {
       en_US:
-        'Run onion services (.onion addresses) to make your installed apps accessible over the Tor network. Provides a SOCKS5 proxy for private browsing and can optionally operate as a Tor relay or bridge to support the network.',
+        'Run I2P services (.b32.i2p addresses) to make your installed apps accessible over the I2P network. Provides SOCKS and HTTP proxies for accessing I2P addresses, and can optionally operate as a floodfill node to support the network.',
       es_ES:
-        'Ejecute servicios onion (direcciones .onion) para hacer accesibles sus aplicaciones instaladas a través de la red Tor. Proporciona un proxy SOCKS5 para navegación privada y opcionalmente puede operar como un relé o puente Tor para apoyar la red.',
+        'Ejecute servicios I2P (direcciones .b32.i2p) para hacer accesibles sus aplicaciones instaladas a través de la red I2P. Proporciona proxies SOCKS e HTTP para acceder a direcciones I2P y opcionalmente puede operar como nodo floodfill para apoyar la red.',
       de_DE:
-        'Betreiben Sie Onion-Dienste (.onion-Adressen), um Ihre installierten Apps über das Tor-Netzwerk zugänglich zu machen. Bietet einen SOCKS5-Proxy für privates Surfen und kann optional als Tor-Relay oder Bridge betrieben werden.',
+        'Betreiben Sie I2P-Dienste (.b32.i2p-Adressen), um Ihre installierten Apps über das I2P-Netzwerk zugänglich zu machen. Bietet SOCKS- und HTTP-Proxies zum Zugriff auf I2P-Adressen und kann optional als Floodfill-Knoten betrieben werden.',
       pl_PL:
-        'Uruchom usługi onion (adresy .onion), aby udostępnić zainstalowane aplikacje przez sieć Tor. Zapewnia proxy SOCKS5 do prywatnego przeglądania i opcjonalnie może działać jako przekaźnik lub most Tor.',
+        'Uruchom usługi I2P (adresy .b32.i2p), aby udostępnić zainstalowane aplikacje przez sieć I2P. Zapewnia proxy SOCKS i HTTP do uzyskiwania dostępu do adresów I2P i opcjonalnie może działać jako węzeł floodfill.',
       fr_FR:
-        'Exécutez des services onion (adresses .onion) pour rendre vos applications installées accessibles via le réseau Tor. Fournit un proxy SOCKS5 pour la navigation privée et peut optionnellement fonctionner comme relais ou pont Tor.',
+        'Exécutez des services I2P (adresses .b32.i2p) pour rendre vos applications installées accessibles via le réseau I2P. Fournit des proxies SOCKS et HTTP pour accéder aux adresses I2P et peut optionnellement fonctionner comme nœud floodfill.',
     },
   },
 }

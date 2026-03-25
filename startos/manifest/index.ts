@@ -2,18 +2,18 @@ import { setupManifest } from '@start9labs/start-sdk'
 import i18n from './i18n'
 
 export const manifest = setupManifest({
-  id: 'tor',
-  title: 'Tor',
-  license: 'BSD-3-Clause',
-  packageRepo: 'https://github.com/Start9Labs/tor-startos/tree/update/040',
-  upstreamRepo: 'https://gitlab.torproject.org/tpo/core/tor/',
-  marketingUrl: 'https://www.torproject.org/',
-  donationUrl: 'https://donate.torproject.org/',
-  docsUrls: ['https://community.torproject.org/onion-services/'],
+  id: 'i2p',
+  title: 'I2P',
+  license: 'GPL-2.0-or-later',
+  packageRepo: 'https://github.com/crissuper20/i2p-startos',
+  upstreamRepo: 'https://github.com/PurpleI2P/i2pd',
+  marketingUrl: 'https://i2pd.website/',
+  donationUrl: 'https://i2pd.website/en/donate',
+  docsUrls: ['https://i2pd.readthedocs.io/'],
   description: i18n.description,
-  volumes: ['tor', 'startos'],
+  volumes: ['i2pd', 'startos'],
   images: {
-    tor: {
+    i2pd: {
       source: { dockerBuild: {} },
       arch: ['x86_64', 'aarch64', 'riscv64'],
     },

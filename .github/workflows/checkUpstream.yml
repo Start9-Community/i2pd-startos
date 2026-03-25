@@ -1,0 +1,60 @@
+name: Check i2pd Upstream
+
+on:
+  schedule:
+    - cron: '0 8 * * 1'   # Monday at 08:00 UTC
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Get current pinned version
+        id: current
+        run: |
+          VERSION=$(grep -oP '(?<=ARG I2PD_VERSION=)\S+' Dockerfile)
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Current pinned: $VERSION"
+
+      - name: Get latest i2pd in Alpine edge
+        id: latest
+        run: |
+          FULL=$(docker run --rm alpine:edge sh -c \
+            "apk update -q 2>/dev/null && apk policy i2pd 2>/dev/null" \
+            | grep -oP '\d+\.\d+\.\d+-r\d+' | head -1)
+          echo "version=$FULL" >> "$GITHUB_OUTPUT"
+          echo "Alpine edge has: $FULL"
+
+      - name: Open PR if outdated
+        if: steps.current.outputs.version != steps.latest.outputs.version
+        run: |
+          CURRENT="${{ steps.current.outputs.version }}"
+          LATEST="${{ steps.latest.outputs.version }}"
+          BRANCH="bump-i2pd-${LATEST}"
+
+          # Also grab the new digest for the base image
+          DIGEST=$(docker inspect alpine:edge --format '{{index .RepoDigests 0}}' | cut -d@ -f2)
+
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git checkout -b "$BRANCH"
+          sed -i "s/^ARG I2PD_VERSION=.*/ARG I2PD_VERSION=${LATEST}/" Dockerfile
+          sed -i "s|alpine:edge@sha256:[a-f0-9]*|alpine:edge@${DIGEST}|" Dockerfile
+          git add Dockerfile
+          git commit -m "chore: bump i2pd ${CURRENT} → ${LATEST}"
+          git push origin "$BRANCH"
+
+          gh pr create \
+            --title "chore: bump i2pd ${CURRENT} → ${LATEST}" \
+            --body "Automated upstream bump from Alpine edge. i2pd \`${LATEST}\` is now available (was \`${CURRENT}\`)." \
+            --base update/040 \
+            --head "$BRANCH"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

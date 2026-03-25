@@ -1,21 +1,21 @@
 import { FileHelper } from '@start9labs/start-sdk'
 import { rm } from 'fs/promises'
-import { addOnionService } from '../actions/addOnionService'
-import { deleteOnionService } from '../actions/deleteOnionService'
-import { hsDir, torrc } from '../fileModels/torrc'
+import { addI2pTunnel } from '../actions/addI2pTunnel'
+import { deleteI2pTunnel } from '../actions/deleteI2pTunnel'
+import { tunnelDir, i2pdConfig } from '../fileModels/i2pd'
 import { sdk } from '../sdk'
 
 export const registerUrlPlugin = sdk.setupOnInit(async (effects) =>
-  sdk.plugin.url.register(effects, { tableAction: addOnionService }),
+  sdk.plugin.url.register(effects, { tableAction: addI2pTunnel }),
 )
 
 export const exportUrls = sdk.plugin.url.setupExportedUrls(
   async ({ effects }) => {
-    const onionServices =
-      (await torrc.read((t) => t.onionServices).const(effects)) || {}
+    const i2pServices =
+      (await i2pdConfig.read((t) => t.i2pServices).const(effects)) || {}
 
-    // Phase 1: Remove onion service entries whose target interface no longer exists
-    const cleaned = structuredClone(onionServices)
+    // Phase 1: Remove I2P tunnel entries whose target interface no longer exists
+    const cleaned = structuredClone(i2pServices)
     const removed: string[] = []
 
     for (const [packageId, hosts] of Object.entries(cleaned)) {
@@ -30,7 +30,7 @@ export const exportUrls = sdk.plugin.url.setupExportedUrls(
       for (const [hostId, services] of Object.entries(hosts)) {
         if (!hostIds.has(hostId)) {
           for (const index of Object.keys(services)) {
-            await rm(sdk.volumes.tor.subpath(hsDir(packageId, hostId, index)), {
+            await rm(sdk.volumes.i2pd.subpath(tunnelDir(packageId, hostId, index)), {
               recursive: true,
               force: true,
             })
@@ -53,23 +53,23 @@ export const exportUrls = sdk.plugin.url.setupExportedUrls(
       // re-invokes this function. On the second run removed is empty,
       // so Phase 2 exports the URLs. This is why we return early here.
       console.info(
-        `Removed stale onion service entries: ${removed.join(', ')}`,
+        `Removed stale I2P tunnel entries: ${removed.join(', ')}`,
       )
-      await torrc.merge(
+      await i2pdConfig.merge(
         effects,
-        { onionServices: cleaned },
+        { i2pServices: cleaned },
         { allowWriteAfterConst: true },
       )
       return
     }
 
     // Phase 2: Export URLs for all valid entries
-    for (const [packageId, hosts] of Object.entries(onionServices)) {
+    for (const [packageId, hosts] of Object.entries(i2pServices)) {
       for (const [hostId, services] of Object.entries(hosts)) {
         for (const [i, svc] of Object.entries(services)) {
           const hostnameFile = FileHelper.string({
-            base: sdk.volumes.tor,
-            subpath: `${hsDir(packageId, hostId, i)}/hostname`,
+            base: sdk.volumes.i2pd,
+            subpath: `${tunnelDir(packageId, hostId, i)}/hostname`,
           })
           const hostname = await hostnameFile.read().const(effects)
           if (!hostname) continue
@@ -87,7 +87,7 @@ export const exportUrls = sdk.plugin.url.setupExportedUrls(
                   port: parseInt(externalPort, 10),
                   info: null,
                 },
-                removeAction: deleteOnionService,
+                removeAction: deleteI2pTunnel,
                 overflowActions: [],
               })
               .catch((e) => {

@@ -1,26 +1,24 @@
 import { i18n } from './i18n'
 import { sdk } from './sdk'
-import { torrc } from './fileModels/torrc'
+import { i2pdConfig } from './fileModels/i2pd'
 
 export const setInterfaces = sdk.setupInterfaces(async ({ effects }) => {
-  const relay = await torrc.read((s) => s.relay).const(effects)
+  // I2P exposes SOCKS proxy on port 4447 (i2p network only)
+  // and HTTP proxy on port 4444 (i2p network only)
+  // These are not general privacy proxies like Tor's SOCKS5
 
-  if (!relay?.enabled) return []
-
-  const orPort = relay.orPort ?? 9001
-
-  const orMulti = sdk.MultiHost.of(effects, 'or-multi')
-  const orOrigin = await orMulti.bindPort(orPort, {
+  const socksMulti = sdk.MultiHost.of(effects, 'socks-multi')
+  const socksOrigin = await socksMulti.bindPort(4447, {
     protocol: null,
-    preferredExternalPort: orPort,
+    preferredExternalPort: 4447,
     addSsl: null,
     secure: null,
   })
 
-  const orInterface = sdk.createInterface(effects, {
-    name: i18n('Tor Relay OR Port'),
-    id: 'or',
-    description: i18n('Tor relay port for the Tor network'),
+  const socksInterface = sdk.createInterface(effects, {
+    name: i18n('I2P SOCKS Proxy'),
+    id: 'socks',
+    description: i18n('SOCKS proxy for I2P network (i2p addresses only)'),
     type: 'api',
     masked: false,
     schemeOverride: null,
@@ -29,6 +27,28 @@ export const setInterfaces = sdk.setupInterfaces(async ({ effects }) => {
     query: {},
   })
 
-  const receipt = await orOrigin.export([orInterface])
-  return [receipt]
+  const httpMulti = sdk.MultiHost.of(effects, 'http-multi')
+  const httpOrigin = await httpMulti.bindPort(4444, {
+    protocol: null,
+    preferredExternalPort: 4444,
+    addSsl: null,
+    secure: null,
+  })
+
+  const httpInterface = sdk.createInterface(effects, {
+    name: i18n('I2P HTTP Proxy'),
+    id: 'http',
+    description: i18n('HTTP proxy for I2P network (i2p addresses only)'),
+    type: 'api',
+    masked: false,
+    schemeOverride: null,
+    username: null,
+    path: '',
+    query: {},
+  })
+
+  const sockReceipt = await socksOrigin.export([socksInterface])
+  const httpReceipt = await httpOrigin.export([httpInterface])
+
+  return [sockReceipt, httpReceipt]
 })

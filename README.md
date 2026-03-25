@@ -1,22 +1,22 @@
 <p align="center">
-  <img src="icon.svg" alt="Tor Logo" width="21%">
+  <img src="icon.svg" alt="I2P Logo" width="21%">
 </p>
 
-# Tor on StartOS
+# I2P on StartOS
 
-> **Upstream docs:** <https://community.torproject.org/onion-services/>
+> **Upstream docs:** <https://i2pd.readthedocs.io/>
 >
 > Everything not listed in this document should behave the same as upstream
-> Tor. If a feature, setting, or behavior is not mentioned here, the
+> I2Pd. If a feature, setting, or behavior is not mentioned here, the
 > upstream documentation is accurate and fully applicable.
 
-Anonymity network for onion services and private browsing. Run onion services
-(.onion addresses) to make your installed apps accessible over the Tor network.
-Provides a SOCKS5 proxy for private browsing and can optionally operate as a
-Tor relay or bridge to support the network.
+Peer-to-peer network for I2P services and decentralized applications. Run I2P
+services (.b32.i2p addresses) to make your installed apps accessible over the
+I2P network. Provides SOCKS and HTTP proxies for accessing I2P addresses, and
+can optionally operate as a floodfill node to support the network.
 
-- **Upstream repo:** <https://gitlab.torproject.org/tpo/core/tor/>
-- **Wrapper repo:** <https://github.com/Start9Labs/tor-startos/>
+- **Upstream repo:** <https://github.com/PurpleI2P/i2pd>
+- **Wrapper repo:** <https://github.com/Start9Labs/i2p-startos>
 
 ---
 
@@ -41,41 +41,41 @@ Tor relay or bridge to support the network.
 
 | Property      | Value                                         |
 | ------------- | --------------------------------------------- |
-| Base image    | Alpine Linux 3.21 with upstream `tor` package |
+| Base image    | Alpine Linux 3.21 with upstream `i2pd` package |
 | Architectures | x86_64, aarch64, riscv64                      |
-| Entrypoint    | `tor -f /etc/tor/torrc`                       |
-| User          | `tor` (non-root)                              |
+| Entrypoint    | `i2pd --conf=/etc/i2pd/i2pd.conf --datadir=/var/lib/i2pd` |
+| User          | `i2pd` (non-root)                              |
 
-The image is minimal -- just Alpine + the `tor` package. No custom patches
-or modifications to the Tor binary.
+The image is minimal -- just Alpine + the `i2pd` package. No custom patches
+or modifications to the I2Pd binary.
 
 ---
 
 ## Volume and Data Layout
 
-| Volume    | Mount Point    | Contents                                               |
-| --------- | -------------- | ------------------------------------------------------ |
-| `tor`     | `/var/lib/tor` | Tor data directory, onion service keys, control socket |
-| `startos` | (internal)     | Migration data (onion-migration.json)                  |
+| Volume    | Mount Point     | Contents                                               |
+| --------- | --------------- | ------------------------------------------------------ |
+| `i2pd`    | `/var/lib/i2pd` | I2P data directory, tunnel keys, HTTP API socket       |
+| `startos` | (internal)      | Migration data (unused currently)                      |
 
-The `torrc` configuration file is stored on the `tor` volume and is the single
-source of truth for all onion service and relay settings. It is generated from
-structured data and round-trips cleanly (metadata is embedded as `# @service`
-and `# @ssl` comment annotations).
+The `i2pd.conf` and `tunnels.conf` files are stored on the `i2pd` volume and
+are the single source of truth for all I2P tunnel and floodfill settings. They
+are generated from structured data and round-trip cleanly (metadata is embedded
+as `# @service` comment annotations).
 
-Onion service keys are stored under
-`/var/lib/tor/hidden_services/<packageId>/<hostId>/hs_<index>/`.
+I2P tunnel keys are stored under
+`/var/lib/i2pd/tunnels/<packageId>/<hostId>/tunnel_<index>/`.
 
 ---
 
 ## Installation and First-Run Flow
 
-1. No setup wizard or credentials -- Tor starts immediately with a SOCKS5
-   proxy on port 9050.
-2. Onion services are added via the URL plugin (see below) or the Configure
-   Relay action.
-3. On upgrade from a previous StartOS version, existing .onion addresses are
-   migrated automatically from `onion-migration.json`.
+1. No setup wizard or credentials -- I2Pd starts immediately with SOCKS and
+   HTTP proxies on ports 4447 and 4444 respectively.
+2. I2P services (tunnels) are added via the URL plugin (see below) or would be
+   added via the Configure Floodfill action.
+3. **Bootstrap takes 3-10 minutes** (not 30 seconds like Tor) for I2Pd to
+   integrate into the I2P network.
 
 ---
 
@@ -86,80 +86,84 @@ There is no upstream configuration UI.
 
 | Setting               | Managed By  | Method                                      |
 | --------------------- | ----------- | ------------------------------------------- |
-| Onion services        | URL plugin  | Add/remove via service interface URLs        |
-| Relay/bridge settings | Action      | Configure Relay                              |
-| SOCKS proxy port      | Hardcoded   | Always `0.0.0.0:9050`                       |
-| Data directory        | Hardcoded   | Always `/var/lib/tor`                        |
-| Control socket        | Hardcoded   | `/var/lib/tor/control.sock`                  |
-| Exit relay            | Hardcoded   | Always disabled                              |
+| I2P tunnels (services)| URL plugin  | Add/remove via service interface URLs        |
+| Floodfill settings    | Action      | Configure Floodfill                           |
+| SOCKS proxy port      | Hardcoded   | Always `127.0.0.1:4447`                     |
+| HTTP proxy port       | Hardcoded   | Always `127.0.0.1:4444`                     |
+| Data directory        | Hardcoded   | Always `/var/lib/i2pd`                       |
+| HTTP API              | Hardcoded   | `127.0.0.1:7070` (for health checks)         |
 
 ---
 
 ## Network Access and Interfaces
 
-### SOCKS5 Proxy
+### SOCKS Proxy (I2P network only)
 
-- **Port:** 9050
-- **Protocol:** SOCKS5
-- **Purpose:** Private browsing proxy for other services on the network
-- **Binding:** `0.0.0.0:9050` (accessible to all services on the StartOS network)
+- **Port:** 4447
+- **Protocol:** SOCKS
+- **Purpose:** Access I2P addresses from the I2P network
+- **Binding:** `127.0.0.1:4447` (localhost only -- I2P-network-restricted)
+- **Limitation:** Cannot be used as a general privacy proxy like Tor
 
-### Relay OR Port (conditional)
+### HTTP Proxy (I2P network only)
 
-- **Port:** Configurable (default 9001)
-- **Protocol:** Tor OR protocol
-- **Purpose:** Relay traffic for the Tor network
-- **Only exposed when relay mode is enabled** via the Configure Relay action
+- **Port:** 4444
+- **Protocol:** HTTP
+- **Purpose:** HTTP access to I2P addresses
+- **Binding:** `127.0.0.1:4444` (localhost only -- I2P-network-restricted)
+- **Limitation:** Cannot be used as a general privacy proxy
+
+### Floodfill Node (conditional)
+
+- **Enabled via:** Configure Floodfill action
+- **Purpose:** Participate as a floodfill node to support the I2P network
+- **Options:**
+  - High Bandwidth mode (H flag)
+  - Extra Bandwidth mode (X flag)
+- **Only exposed when floodfill mode is enabled**
 
 ---
 
 ## Actions (StartOS UI)
 
-### Configure Relay
+### Configure Floodfill
 
-- **ID:** `configure-relay`
+- **ID:** `configure-floodfill`
 - **Visibility:** Enabled (user-facing)
-- **Purpose:** Configure Tor relay and bridge settings
+- **Purpose:** Configure I2P floodfill node settings
 - **Availability:** Any status
 - **Inputs:**
-  - **Enabled** -- toggle relay on/off (default: off)
-  - **Nickname** -- 1-19 alphanumeric characters (default: "StartOSRelay")
-  - **Contact Info** -- optional operator email
-  - **Bridge Mode** -- toggle bridge relay (default: off)
-  - **OR Port** -- 1-65535 (default: 9001)
-  - **Bandwidth Rate** -- integer in MB/s (default: 1)
-  - **Bandwidth Burst** -- integer in MB/s (default: 2)
-- **Note:** Exit relay is always disabled. This package only supports
-  non-exit relays and bridges.
+  - **Enabled** -- toggle floodfill mode on/off (default: off)
+  - **High Bandwidth** -- enable H flag (default: off)
+  - **Extra Bandwidth** -- enable X flag (default: off)
+- **Note:** Only one bandwidth flag should be enabled at a time.
 
-### Add Onion Service (hidden)
+### Add I2P Tunnel (hidden)
 
-- **ID:** `add-onion-service`
+- **ID:** `add-i2p-tunnel`
 - **Visibility:** Hidden (invoked by the URL plugin, not directly by users)
-- **Purpose:** Add a Tor onion service for a specific service interface URL
+- **Purpose:** Add an I2P server tunnel for a specific service interface URL
 - **Inputs:**
   - **SSL** -- whether to serve with SSL (hidden if interface doesn't support it)
-  - **Address** -- choose an existing .onion address or create a new one
-  - **Private Key** -- optional base64-encoded ed25519 key for vanity .onion
-    addresses (only shown when creating a new address)
+  - **Address** -- choose an existing .b32.i2p address or create a new one
 
-### Delete Onion Service (hidden)
+### Delete I2P Tunnel (hidden)
 
-- **ID:** `delete-onion-service`
+- **ID:** `delete-i2p-tunnel`
 - **Visibility:** Hidden (invoked by the URL plugin)
-- **Purpose:** Remove a specific port binding from an onion service; deletes
-  the entire .onion address and keys if no port bindings remain
+- **Purpose:** Remove a specific port binding from an I2P tunnel; deletes
+  the entire .b32.i2p address and keys if no port bindings remain
 
 ---
 
 ## URL Plugin
 
-Tor registers as a `url-v0` plugin, which integrates with the StartOS
-interface URL system. This allows users to add/remove .onion addresses for
+I2P registers as a `url-v0` plugin, which integrates with the StartOS
+interface URL system. This allows users to add/remove .b32.i2p addresses for
 any service's interface directly from the service's URL table.
 
-- **Table action:** `add-onion-service` -- appears in the URL table for all services
-- **Remove action:** `delete-onion-service` -- attached to each exported .onion URL
+- **Table action:** `add-i2p-tunnel` -- appears in the URL table for all services
+- **Remove action:** `delete-i2p-tunnel` -- attached to each exported .b32.i2p URL
 - **Stale cleanup:** On init, entries referencing interfaces that no longer
   exist are automatically removed along with their key material
 
@@ -167,68 +171,72 @@ any service's interface directly from the service's URL table.
 
 ## Backups and Restore
 
-- **Backed up:** Entire `tor` volume (onion service keys, torrc, relay state)
-- **Restore behavior:** Volume-level restore; onion service keys are preserved,
-  so .onion addresses survive backup/restore cycles.
-- **Uninstall warning:** Uninstalling Tor permanently deletes all onion
-  service keys and .onion addresses.
+- **Backed up:** Entire `i2pd` volume (I2P tunnel keys, config files)
+- **Restore behavior:** Volume-level restore; I2P tunnel keys are preserved,
+  so .b32.i2p addresses survive backup/restore cycles.
+- **Uninstall warning:** Uninstalling I2P permanently deletes all I2P tunnel
+  keys and .b32.i2p addresses.
 
 ---
 
 ## Health Checks
 
-- **Method:** Connects to Tor's Unix control socket and queries
-  `GETINFO status/bootstrap-phase`
+- **Method:** Queries I2Pd's HTTP API on `127.0.0.1:7070`
 - **States:**
-  - **Loading** -- "Bootstrapping: X% - summary" (shown during startup)
-  - **Success** -- "Tor is running" (bootstrap reached 100%)
-  - **Failure** -- "Tor is not ready" (control socket unreachable or timeout)
+  - **Loading** -- "I2Pd is loading — integrating into network (this takes several minutes)"
+  - **Success** -- "I2Pd is running" (once fully bootstrapped)
+  - **Failure** -- "I2Pd is not responding" (HTTP API unreachable or timeout)
 - **Timeout:** 5 seconds per check
+- **Note:** Bootstrap typically takes **3-10 minutes** vs. 30 seconds for Tor
 
 ---
 
 ## Limitations and Differences
 
-1. **No exit relay support.** `ExitRelay 0` is always set. This package only
-   supports non-exit relays and bridges.
-2. **No Tor Browser.** This package runs the Tor daemon only, not Tor Browser.
-3. **SOCKS port is fixed** at 9050 and cannot be changed via the UI.
-4. **No stream isolation** configuration is exposed.
-5. **No pluggable transports** (obfs4, snowflake, etc.) are included in the
-   Alpine image.
+1. **I2P-network-only proxies.** SOCKS and HTTP proxies only work for .b32.i2p
+   addresses, not as general privacy proxies like Tor's SOCKS5.
+2. **Longer bootstrap time.** Integration into the I2P network takes 3-10
+   minutes vs. 30 seconds for Tor.
+3. **Floodfill, not relay/bridge.** I2P uses floodfill nodes instead of Tor's
+   relay/bridge architecture.
+4. **No SAM protocol exposure.** This package does not expose the SAM (Simple
+   Anonymous Messaging) API.
 
 ---
 
 ## What Is Unchanged from Upstream
 
-- Tor binary is the upstream Alpine package, unmodified
-- Onion service v3 protocol behavior
-- SOCKS5 proxy protocol and behavior
-- Relay and bridge protocol behavior
-- Tor directory authority connections
-- Automatic circuit building and path selection
+- I2Pd binary is the upstream Alpine package, unmodified
+- I2P tunnel protocol behavior
+- I2P network bootstrap and peer discovery
+- Floodfill node participation
+- SOCKS proxy protocol (for I2P addresseses)
+- HTTP proxy protocol (for I2P addresses)
 
 ---
 
 ## Quick Reference for AI Consumers
 
 ```yaml
-package_id: tor
-image: Alpine Linux + tor package
+package_id: i2p
+image: Alpine Linux + i2pd package
 architectures: [x86_64, aarch64, riscv64]
 volumes:
-  tor: /var/lib/tor
+  i2pd: /var/lib/i2pd
   startos: migration data
 ports:
-  socks: 9050
-  or: 9001 (conditional, relay mode only)
+  socks: 4447 (I2P-network-only)
+  http: 4444 (I2P-network-only)
+  http_api: 7070 (localhost, health checks only)
 dependencies: none
 plugins: [url-v0]
 startos_managed_config:
-  - torrc (generated from structured data, round-trips via comment annotations)
+  - i2pd.conf (generated from structured data)
+  - tunnels.conf (generated from structured data, round-trips via comment annotations)
 actions:
-  - configure-relay (user-facing)
-  - add-onion-service (hidden, URL plugin)
-  - delete-onion-service (hidden, URL plugin)
+  - configure-floodfill (user-facing)
+  - add-i2p-tunnel (hidden, URL plugin)
+  - delete-i2p-tunnel (hidden, URL plugin)
 languages: [en_US, es_ES, de_DE, pl_PL, fr_FR]
+bootstrap_time: 3-10 minutes (vs. 30 seconds for Tor)
 ```

@@ -1,22 +1,22 @@
 import { sdk } from '../sdk'
 import { setDependencies } from '../dependencies'
 import { setInterfaces } from '../interfaces'
-import { versionGraph } from '../install/versionGraph'
+import { versionGraph } from '../versions'
 import { actions } from '../actions'
 import { restoreInit } from '../backups'
 import { registerUrlPlugin, exportUrls } from '../plugin/url'
-import { migrateOnionAddresses } from './migrateOnionAddresses'
-import { seedTorrc } from './seedTorrc'
+import { migrateI2pAddresses } from './migrateI2pAddresses'
+import { seedI2pdConfig } from './seedI2pdConfig'
 
 export const init = sdk.setupInit(
   restoreInit,
   versionGraph,
-  seedTorrc,
+  seedI2pdConfig,
   setInterfaces,
   setDependencies,
   actions,
   registerUrlPlugin,
-  migrateOnionAddresses,
+  migrateI2pAddresses,
   exportUrls,
 )
 
