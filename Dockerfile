@@ -5,6 +5,7 @@ ARG I2PD_VERSION=2.59.0-r1
 RUN apk add --no-cache \
     i2pd=${I2PD_VERSION} && \
     mkdir -p /var/lib/i2pd && \
+    ln -s /usr/share/i2pd/certificates /var/lib/i2pd/certificates && \
     chown -R i2pd:i2pd /var/lib/i2pd
 
 USER i2pd
