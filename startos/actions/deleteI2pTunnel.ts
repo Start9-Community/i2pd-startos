@@ -1,7 +1,7 @@
-import { rm } from 'fs/promises'
-import { i2pdConfig, tunnelDir, syncConfigToFiles } from '../fileModels/i2pd'
-import { i18n } from '../i18n'
+import { rm, writeFile } from 'fs/promises'
+import { i2pdConfig, tunnelDir, generateI2pdConf, generateTunnelsConf } from '../fileModels/i2pd'
 import { sdk } from '../sdk'
+import { i18n } from '../i18n'
 import { reloadI2pdTunnels } from '../utils'
 
 const { InputSpec, Value } = sdk
@@ -93,7 +93,8 @@ export const deleteI2pTunnel = sdk.Action.withInput(
       router: config?.router ?? { bandwidth: 'O' as const, transit: true, loglevel: 'warn' as const },
     }
     await i2pdConfig.write(effects, updatedConfig)
-    await syncConfigToFiles(updatedConfig)
+    await sdk.volumes.i2pd.writeFile('etc/i2pd/i2pd.conf', generateI2pdConf(updatedConfig))
+    await sdk.volumes.i2pd.writeFile('etc/i2pd/tunnels.conf', generateTunnelsConf(updatedConfig))
     await reloadI2pdTunnels()
   },
 )

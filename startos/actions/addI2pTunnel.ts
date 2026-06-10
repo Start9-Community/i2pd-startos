@@ -1,9 +1,31 @@
-import { i2pdConfig, nextKey, tunnelDir, syncConfigToFiles } from '../fileModels/i2pd'
-import { i18n } from '../i18n'
+import { i2pdConfig, nextKey, tunnelDir, generateI2pdConf, generateTunnelsConf } from '../fileModels/i2pd'
 import { sdk } from '../sdk'
-import { generateI2pKey, reloadI2pdTunnels } from '../utils'
+import { i18n } from '../i18n'
+import { parseI2pKey, reloadI2pdTunnels } from '../utils'
 
 const { InputSpec, Value, Variants } = sdk
+
+const privateKeySpec = InputSpec.of({
+  privateKey: Value.text({
+    name: i18n('Private Key (.dat file, base64), optional'),
+    description: i18n(
+      'Paste the base64-encoded contents of an existing i2pd .dat key file to reuse a known .b32.i2p address. Leave blank to auto-generate a new address. Only EdDSA-SHA512-ED25519 + ElGamal keys (679 bytes) are supported.',
+    ),
+    required: false,
+    default: null,
+    placeholder: null,
+    patterns: [
+      {
+        regex: '^[A-Za-z0-9+/\\s]+=*$',
+        description: i18n('Must be a valid base64 string'),
+      },
+    ],
+    masked: true,
+    inputmode: 'text',
+    minLength: 908,
+    maxLength: 916,
+  }),
+})
 
 const inputSpec = InputSpec.of({
   urlPluginMetadata: Value.hidden<{
@@ -62,7 +84,7 @@ const inputSpec = InputSpec.of({
 
     variants['new'] = {
       name: i18n('Create new address'),
-      spec: InputSpec.of({}),
+      spec: privateKeySpec,
     }
 
     return {
@@ -127,7 +149,7 @@ export const addI2pTunnel = sdk.Action.withInput(
     }
 
     // I2P's own proxy interfaces (SOCKS 4447, HTTP 4444) are outbound-only
-    // proxy ports — assigning an inbound .b32.i2p tunnel to them is nonsensical.
+    // assigning an inbound .b32.i2p tunnel to these is nonsensical.
     if (packageId === 'i2p') {
       throw new Error(
         i18n('I2P proxy interfaces cannot receive I2P tunnel addresses'),
@@ -204,8 +226,12 @@ export const addI2pTunnel = sdk.Action.withInput(
       const tunnelPath = tunnelDir(pkgKey, hostId, index)
       const keyfileName = `${pkgKey}-${hostId}-${index}.dat`
 
-      // Generate a valid i2pd key pair and derive the real .b32.i2p address
-      const { keyfile, hostname } = generateI2pKey()
+      // Generate a new key pair or import an existing one (if privateKey provided).
+      // parseI2pKey(null) falls back to generateI2pKey().
+      const privateKey =
+        (address.value as { privateKey?: string | null } | null)?.privateKey ??
+        null
+      const { keyfile, hostname } = parseI2pKey(privateKey)
       await sdk.volumes.i2pd.writeFile(`${tunnelPath}/${keyfileName}`, keyfile)
       await sdk.volumes.i2pd.writeFile(`${tunnelPath}/hostname`, hostname)
 
@@ -217,7 +243,7 @@ export const addI2pTunnel = sdk.Action.withInput(
       services[index]!.ports = { ...services[index]!.ports, ...newPorts }
     }
 
-    // Build and write the full config in one pass — avoids a second read() call
+    // Build and write the full config in one pass, avoids a second read() call
     // after write() which can race and throw "Unexpected end of JSON input".
     const updatedConfig = {
       i2pServices,
@@ -225,7 +251,8 @@ export const addI2pTunnel = sdk.Action.withInput(
       router: config?.router ?? { bandwidth: 'O' as const, transit: true, loglevel: 'warn' as const },
     }
     await i2pdConfig.write(effects, updatedConfig)
-    await syncConfigToFiles(updatedConfig)
+    await sdk.volumes.i2pd.writeFile('etc/i2pd/i2pd.conf', generateI2pdConf(updatedConfig))
+    await sdk.volumes.i2pd.writeFile('etc/i2pd/tunnels.conf', generateTunnelsConf(updatedConfig))
     await reloadI2pdTunnels()
     return null
   },

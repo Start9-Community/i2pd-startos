@@ -2,9 +2,26 @@ import * as http from 'http'
 import type { HealthCheckResult } from '@start9labs/start-sdk/package/lib/health/checkFns'
 import { i18n } from './i18n'
 import { sdk } from './sdk'
+import { i2pdConfig, generateI2pdConf, generateTunnelsConf } from './fileModels/i2pd'
 
 export const main = sdk.setupMain(async ({ effects }) => {
   console.info('Starting I2Pd!')
+
+  // Re-sync conf files to the volume on every start so they always reflect the
+  // current config.json.  Actions (addI2pTunnel, deleteI2pTunnel, etc.) also
+  // write here, and i2pd is pointed at these paths via --conf, so hot-reload
+  // (reloadI2pdTunnels) picks up the latest tunnels.conf without a restart.
+  const config = await i2pdConfig.read().once() ?? {
+    i2pServices: {},
+    floodfill: { enabled: false },
+    router: {
+      bandwidth: 'O' as const,
+      transit: true,
+      loglevel: 'warn' as const,
+    },
+  }
+  await sdk.volumes.i2pd.writeFile('etc/i2pd/i2pd.conf', generateI2pdConf(config))
+  await sdk.volumes.i2pd.writeFile('etc/i2pd/tunnels.conf', generateTunnelsConf(config))
 
   const i2pdSub = await sdk.SubContainer.of(
     effects,
@@ -20,8 +37,6 @@ export const main = sdk.setupMain(async ({ effects }) => {
 
   return (
     sdk.Daemons.of(effects)
-      // Fix permissions before the daemon starts — the volume is created as root
-      // but I2Pd runs as the 'i2pd' user
       .addOneshot('fix-perms', {
         subcontainer: i2pdSub,
         exec: {
@@ -37,13 +52,10 @@ export const main = sdk.setupMain(async ({ effects }) => {
       .addDaemon('i2pd', {
         subcontainer: i2pdSub,
         exec: {
-          // Shell wrapper traps SIGTERM to trigger i2pd's graceful shutdown.
-          // Graceful shutdown announces tunnel withdrawal so peers stop routing
-          // to our tunnels immediately, instead of timing out for ~10 minutes.
           command: [
             'sh',
             '-c',
-            'i2pd --conf=/var/lib/i2pd/i2pd.conf --datadir=/var/lib/i2pd & PID=$!; trap "wget -q -O /dev/null http://127.0.0.1:7070/?cmd=shutdown_graceful 2>/dev/null || kill $PID 2>/dev/null; wait $PID; exit 0" TERM; wait $PID',
+            'i2pd --conf=/var/lib/i2pd/etc/i2pd/i2pd.conf --datadir=/var/lib/i2pd & PID=$!; trap "wget -q -O /dev/null http://127.0.0.1:7070/?cmd=shutdown_graceful 2>/dev/null || kill $PID 2>/dev/null; wait $PID; exit 0" TERM; wait $PID',
           ],
         },
         ready: {
