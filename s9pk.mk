@@ -3,8 +3,15 @@
 
 PACKAGE_ID := $(shell awk -F"'" '/id:/ {print $$2}' startos/manifest/index.ts)
 INGREDIENTS := $(shell start-cli s9pk list-ingredients 2>/dev/null)
-ARCHES ?= x86 arm riscv
-TARGETS ?= arches
+# Resolve the actual git dir so this works inside git worktrees, where .git
+# is a file pointing at <main>/.git/worktrees/<name> rather than a directory.
+GIT_DIR := $(shell git rev-parse --git-dir 2>/dev/null)
+GIT_DEPS := $(if $(GIT_DIR),$(GIT_DIR)/HEAD $(GIT_DIR)/index)
+ARCHES ?= x86_64 aarch64 riscv64
+# TARGETS is the list of leaf make-targets the build matrix fans out over.
+# Defaults to the arches; variant packages override (e.g. immich, ollama, vllm
+# set this to a list of variant or variant-arch leaf targets).
+TARGETS ?= $(ARCHES)
 ifdef VARIANT
 BASE_NAME := $(PACKAGE_ID)_$(VARIANT)
 else
@@ -50,12 +57,12 @@ x86 x86_64: arch/x86_64
 arm arm64 aarch64: arch/aarch64
 riscv riscv64: arch/riscv64
 
-$(BASE_NAME).s9pk: $(INGREDIENTS) .git/HEAD .git/index
+$(BASE_NAME).s9pk: $(INGREDIENTS) $(GIT_DEPS)
 	@$(MAKE) --no-print-directory ingredients
 	@echo "   Packing '$@'..."
 	start-cli s9pk pack -o $@
 
-$(BASE_NAME)_%.s9pk: $(INGREDIENTS) .git/HEAD .git/index
+$(BASE_NAME)_%.s9pk: $(INGREDIENTS) $(GIT_DEPS)
 	@$(MAKE) --no-print-directory ingredients
 	@echo "   Packing '$@'..."
 	start-cli s9pk pack --arch=$* -o $@
@@ -69,11 +76,11 @@ install: | check-deps check-init
 		echo "Error: You must define \"host: http://server-name.local\" in ~/.startos/config.yaml"; \
 		exit 1; \
 	fi; \
-	S9PK=$$(ls -t *.s9pk 2>/dev/null | head -1); \
-	if [ -z "$$S9PK" ]; then \
+	if [ -z "$$(start-cli s9pk select 2>/dev/null)" ]; then \
 		echo "Error: No .s9pk file found. Run 'make' first."; \
 		exit 1; \
 	fi; \
+	S9PK=$$(start-cli s9pk select) || exit 1; \
 	printf "\n🚀 Installing %s to %s ...\n" "$$S9PK" "$$HOST"; \
 	start-cli package install -s "$$S9PK"
 
@@ -114,13 +121,11 @@ check-init:
 	fi
 
 javascript/index.js: $(shell find startos -type f) tsconfig.json node_modules
+	npm run check
 	npm run build
 
-node_modules: package-lock.json
+node_modules: package-lock.json package.json
 	npm ci
-
-package-lock.json: package.json
-	npm i
 
 clean:
 	@echo "Cleaning up build artifacts..."

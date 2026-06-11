@@ -21,7 +21,7 @@ export const setInterfaces = sdk.setupInterfaces(async ({ effects }) => {
     description: i18n('SOCKS proxy for I2P network (i2p addresses only)'),
     type: 'api',
     masked: false,
-    schemeOverride: { ssl: null, noSsl: 'socks5' },
+    schemeOverride: { ssl: 'socks5', noSsl: 'socks5' },
     username: null,
     path: '',
     query: {},
@@ -41,7 +41,7 @@ export const setInterfaces = sdk.setupInterfaces(async ({ effects }) => {
     description: i18n('HTTP proxy for I2P network (i2p addresses only)'),
     type: 'api',
     masked: false,
-    schemeOverride: { ssl: null, noSsl: 'http' },
+    schemeOverride: null, 
     username: null,
     path: '',
     query: {},
@@ -52,10 +52,9 @@ export const setInterfaces = sdk.setupInterfaces(async ({ effects }) => {
 
   const consoleMulti = sdk.MultiHost.of(effects, 'console-multi')
   const consoleOrigin = await consoleMulti.bindPort(7070, {
-    protocol: null,
+    protocol: 'http',
     preferredExternalPort: 7070,
-    addSsl: null,
-    secure: { ssl: false },
+    addSsl: undefined,
   })
 
   const consoleInterface = sdk.createInterface(effects, {
@@ -66,7 +65,7 @@ export const setInterfaces = sdk.setupInterfaces(async ({ effects }) => {
     ),
     type: 'ui',
     masked: false,
-    schemeOverride: { ssl: null, noSsl: 'http' },
+    schemeOverride: { ssl: 'https', noSsl: 'http' },
     username: null,
     path: '',
     query: {},

@@ -2,7 +2,7 @@
   "name": "i2p-startos",
   "scripts": {
     "build": "rm -rf ./javascript && ncc build startos/index.ts -o ./javascript",
-    "prettier": "prettier --write startos",
+    "watch": "tsc -w",
     "check": "tsc --noEmit"
   },
   "dependencies": {

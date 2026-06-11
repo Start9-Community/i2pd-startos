@@ -74,6 +74,9 @@ const dict = {
   'HTTPS URL of a custom i2p reseed server (su3 format). Set to your own i2pd floodfill node\'s reseed endpoint to bootstrap the peer pool with known O-type peers from the start. Leave blank to use default reseed servers.': 70,
   'Must be an HTTPS URL': 71,
   'e.g. https://your-vps.example.com/i2pseeds.su3': 72,
+  'Private Key (.dat file, base64), optional': 73,
+  'Paste the base64-encoded contents of an existing i2pd .dat key file to reuse a known .b32.i2p address. Leave blank to auto-generate a new address. Only EdDSA-SHA512-ED25519 + ElGamal keys (679 bytes) are supported.': 74,
+  'Must be a valid base64 string': 75,
 } as const
 
 export type I18nKey = keyof typeof dict

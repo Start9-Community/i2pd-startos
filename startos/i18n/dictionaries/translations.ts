@@ -75,6 +75,9 @@ export default {
     70: 'URL HTTPS de un servidor de reseed i2p personalizado (formato su3). Configure el endpoint de reseed de su propio nodo floodfill i2pd para inicializar el pool de pares con pares O-type conocidos desde el inicio. Dejar en blanco para usar los servidores de reseed predeterminados.',
     71: 'Debe ser una URL HTTPS',
     72: 'p. ej. https://su-vps.ejemplo.com/i2pseeds.su3',
+    73: 'Clave privada (archivo .dat, base64), opcional',
+    74: 'Pegue el contenido base64 de un archivo .dat de i2pd para reutilizar una dirección .b32.i2p conocida. Deje en blanco para generar una nueva.',
+    75: 'Debe ser una cadena base64 válida',
   },
   de_DE: {
     0: 'I2Pd läuft',
@@ -150,6 +153,9 @@ export default {
     70: 'HTTPS-URL eines benutzerdefinierten i2p-Reseed-Servers (su3-Format). Setzen Sie dies auf den Reseed-Endpunkt Ihres eigenen i2pd-Floodfill-Knotens, um den Peer-Pool beim Start mit bekannten O-Type-Peers zu initialisieren. Leer lassen für Standard-Reseed-Server.',
     71: 'Muss eine HTTPS-URL sein',
     72: 'z.B. https://ihr-vps.beispiel.com/i2pseeds.su3',
+    73: 'Privater Schlüssel (.dat-Datei, base64), optional',
+    74: 'Fügen Sie den base64-Inhalt einer vorhandenen i2pd-.dat-Datei ein, um eine bekannte .b32.i2p-Adresse wiederzuverwenden. Leer lassen für automatische Generierung.',
+    75: 'Muss eine gültige Base64-Zeichenfolge sein',
   },
   pl_PL: {
     0: 'I2Pd działa',
@@ -225,6 +231,9 @@ export default {
     70: 'URL HTTPS niestandardowego serwera reseed i2p (format su3). Ustaw na endpoint reseed własnego węzła floodfill i2pd, aby zasilić pulę peerów znanymi peerami O-type od samego początku. Pozostaw puste, aby używać domyślnych serwerów reseed.',
     71: 'Musi być URL HTTPS',
     72: 'np. https://twoj-vps.przyklad.com/i2pseeds.su3',
+    73: 'Klucz prywatny (plik .dat, base64), opcjonalny',
+    74: 'Wklej zawartość base64 istniejącego pliku .dat i2pd, aby ponownie użyć znanego adresu .b32.i2p. Pozostaw puste, aby wygenerować nowy.',
+    75: 'Musi być prawidłowym ciągiem base64',
   },
   fr_FR: {
     0: 'I2Pd fonctionne',
@@ -300,5 +309,8 @@ export default {
     70: 'URL HTTPS d\'un serveur de reseed i2p personnalisé (format su3). Définissez le point de terminaison reseed de votre propre nœud floodfill i2pd pour amorcer le pool de pairs avec des pairs O-type connus dès le démarrage. Laisser vide pour utiliser les serveurs de reseed par défaut.',
     71: 'Doit être une URL HTTPS',
     72: 'ex. https://votre-vps.exemple.com/i2pseeds.su3',
+    73: 'Clé privée (fichier .dat, base64), optionnel',
+    74: 'Collez le contenu base64 d\'un fichier .dat i2pd existant pour réutiliser une adresse .b32.i2p connue. Laisser vide pour générer automatiquement.',
+    75: 'Doit être une chaîne base64 valide',
   },
 } as const satisfies Record<string, LangDict>

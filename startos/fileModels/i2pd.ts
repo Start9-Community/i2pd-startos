@@ -25,12 +25,12 @@ export const routerShape = z.object({
   // (LXC bridge MASQUERADE + home router), so setting the external IP (e.g. a
   // VPS with port 4450 UDP forwarded to this machine) makes i2pd classify as
   // O-type and publish LeaseSets successfully.
-  externalHost: z.string().regex(/^[^\n\r]*$/).optional(),
+  externalHost: z.string().regex(/^[^\n\r]*$/).optional().catch(undefined),
   // Custom reseed URL (su3-serving HTTPS endpoint).  Setting this to a
   // user-controlled floodfill node's reseed service ensures that the peer
   // pool at first boot already contains at least one O-type router, which
   // dramatically improves IBGW quality for the first tunnel builds.
-  reseedUrl: z.string().url().optional(),
+  reseedUrl: z.string().url().optional().catch(undefined),
 })
 
 const shape = z.object({
@@ -74,13 +74,14 @@ export function nextKey(record: Record<string, unknown>): string {
  * Generates the i2pd.conf main configuration file.
  * Parses through Zod before emitting — catches corrupt values before they crash i2pd.
  */
-function generateI2pdConf(config: I2pdConfig): string {
+export function generateI2pdConf(config: I2pdConfig): string {
   const router = routerShape.parse(config.router)
   const ff = floodfillShape.parse(config.floodfill)
 
   const lines: string[] = [
     '# i2pd configuration',
-    'tunconf = /var/lib/i2pd/tunnels.conf',
+    // Tunnels conf lives in the volume so hot-reloads via the HTTP API work.
+    'tunconf = /var/lib/i2pd/etc/i2pd/tunnels.conf',
     '',
     `loglevel = ${router.loglevel}`,
   ]
@@ -227,7 +228,7 @@ function generateI2pdConf(config: I2pdConfig): string {
  * 443), each port gets its own [section] that references the same .dat keys
  * file — so they all share the same .b32.i2p destination address.
  */
-function generateTunnelsConf(config: I2pdConfig): string {
+export function generateTunnelsConf(config: I2pdConfig): string {
   const lines: string[] = ['# i2pd server tunnels', '']
 
   for (const [packageId, hosts] of Object.entries(config.i2pServices)) {
@@ -293,14 +294,3 @@ export const i2pdConfig = FileHelper.json(
   shape,
 )
 
-/**
- * Syncs the JSON config to i2pd.conf and tunnels.conf files.
- * Call this after modifying i2pdConfig via merge().
- */
-export async function syncConfigToFiles(config: I2pdConfig): Promise<void> {
-  const i2pdConf = generateI2pdConf(config)
-  const tunnelsConf = generateTunnelsConf(config)
-  
-  await sdk.volumes.i2pd.writeFile('i2pd.conf', i2pdConf)
-  await sdk.volumes.i2pd.writeFile('tunnels.conf', tunnelsConf)
-}

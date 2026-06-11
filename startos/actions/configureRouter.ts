@@ -1,6 +1,7 @@
-import { i2pdConfig, syncConfigToFiles } from '../fileModels/i2pd'
-import { i18n } from '../i18n'
+import { i2pdConfig, generateI2pdConf, generateTunnelsConf } from '../fileModels/i2pd'
+import { writeFile } from 'fs/promises'
 import { sdk } from '../sdk'
+import { i18n } from '../i18n'
 
 const { InputSpec, Value } = sdk
 
@@ -125,9 +126,8 @@ export const configureRouter = sdk.Action.withInput(
     }
 
     await i2pdConfig.write(effects, updatedConfig)
-    await syncConfigToFiles(updatedConfig)
-
-    // i2pd doesn't hot-reload i2pd.conf — restart the service to apply changes
+    await sdk.volumes.i2pd.writeFile('etc/i2pd/i2pd.conf', generateI2pdConf(updatedConfig))
+    await sdk.volumes.i2pd.writeFile('etc/i2pd/tunnels.conf', generateTunnelsConf(updatedConfig))
     await effects.restart()
   },
 )
