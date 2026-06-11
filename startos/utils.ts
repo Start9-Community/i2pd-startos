@@ -1,7 +1,8 @@
 import { createHash, createDiffieHellmanGroup } from 'crypto'
-import * as http from 'http'
+import { T } from '@start9labs/start-sdk'
 import { ed25519 } from '@noble/curves/ed25519.js'
 import { base32 } from 'rfc4648'
+import { sdk } from './sdk'
 
 /**
  * Generate a valid i2pd server tunnel key pair (.dat file) and derive the
@@ -105,52 +106,52 @@ export function parseI2pKey(base64Key: string | null): {
  * i2pd does NOT watch tunnels.conf for changes automatically — the reload must
  * be triggered explicitly after the file is written.  The WebConsole requires a
  * session token (embedded in every page), so we fetch it first and then issue
- * the reload command.  Errors are silently ignored: the call is best-effort and
- * will naturally fail during the init phase when i2pd hasn't started yet.
+ * the reload command.
+ *
+ * The HTTP calls run via wget inside a temp subcontainer, NOT from this JS
+ * process: actions and init run in the procedure context, whose network
+ * namespace cannot reach the i2pd subcontainer — neither on 127.0.0.1 nor via
+ * the i2p.startos bridge address. Subcontainers of the same package share a
+ * network namespace, so loopback works from there.
+ *
+ * Best-effort: failures are logged, not thrown — the call naturally fails
+ * while i2pd is stopped (the regenerated conf is then picked up on next start).
  */
-export function reloadI2pdTunnels(): Promise<void> {
-  return new Promise((resolve) => {
-    // Step 1: fetch any page to extract the session token
-    const tokenReq = http.request(
-      { host: '127.0.0.1', port: 7070, path: '/?page=commands', method: 'GET' },
-      (res) => {
-        let body = ''
-        res.on('data', (chunk) => (body += chunk))
-        res.on('end', () => {
-          const match = body.match(/token=(\d+)/)
-          if (!match) {
-            resolve()
-            return
-          }
-          const token = match[1]
+/**
+ * Reload script run inside a temp subcontainer (which shares the package
+ * network namespace, so 127.0.0.1 reaches the running i2pd — the procedure
+ * context itself cannot). The conf pre-read through this fresh volume mount
+ * nudges the daemon's view of the just-written files; on platforms where the
+ * cross-context file view lags (observed on a StartOS VM), the reload's
+ * effect can trail by up to a couple of minutes, which I2P tunnel
+ * establishment latency subsumes anyway.
+ */
+const RELOAD_SCRIPT = `
+cat /var/lib/i2pd/etc/i2pd/tunnels.conf /var/lib/i2pd/etc/i2pd/i2pd.conf > /dev/null 2>&1
+TOKEN=$(wget -q -T 5 -O - 'http://127.0.0.1:7070/?page=commands' | grep -o 'token=[0-9]*' | head -1 | cut -d= -f2)
+[ -n "$TOKEN" ] && wget -q -T 5 -O /dev/null "http://127.0.0.1:7070/?cmd=reload_tunnels_config&token=$TOKEN"
+`
 
-          // Step 2: trigger reload
-          const reloadReq = http.request(
-            {
-              host: '127.0.0.1',
-              port: 7070,
-              path: `/?cmd=reload_tunnels_config&token=${token}`,
-              method: 'GET',
-            },
-            (res2) => {
-              res2.resume()
-              resolve()
-            },
-          )
-          reloadReq.setTimeout(5000, () => {
-            reloadReq.destroy()
-            resolve()
-          })
-          reloadReq.on('error', () => resolve())
-          reloadReq.end()
-        })
+export async function reloadI2pdTunnels(effects: T.Effects): Promise<void> {
+  try {
+    await sdk.SubContainer.withTemp(
+      effects,
+      { imageId: 'i2pd' },
+      sdk.Mounts.of().mountVolume({
+        volumeId: 'i2pd',
+        subpath: null,
+        mountpoint: '/var/lib/i2pd',
+        readonly: true,
+      }),
+      'reload-tunnels',
+      async (sub) => {
+        const res = await sub.exec(['sh', '-c', RELOAD_SCRIPT])
+        if (res.exitCode !== 0) {
+          throw new Error(String(res.stderr) || `exit code ${res.exitCode}`)
+        }
       },
     )
-    tokenReq.setTimeout(5000, () => {
-      tokenReq.destroy()
-      resolve()
-    })
-    tokenReq.on('error', () => resolve())
-    tokenReq.end()
-  })
+  } catch (e: any) {
+    console.warn(`Could not hot-reload i2pd tunnels: ${e?.message ?? e}`)
+  }
 }

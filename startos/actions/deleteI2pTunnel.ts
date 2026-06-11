@@ -117,6 +117,6 @@ export const deleteI2pTunnel = sdk.Action.withInput(
       'etc/i2pd/tunnels.conf',
       generateTunnelsConf(updatedConfig),
     )
-    await reloadI2pdTunnels()
+    await reloadI2pdTunnels(effects)
   },
 )

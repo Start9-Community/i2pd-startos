@@ -13,6 +13,8 @@ Please note that these proxies only work for routing traffic to internal .i2p an
 ## Hosting Services on I2P
 To assign a hidden .b32.i2p address to any installed application, open that specific service, navigate to the Interfaces section, and add a new I2P address from the URL table to make it accessible within the network. When adding one you can paste the base64-encoded contents of an existing i2pd `.dat` key file to reuse a known address, or leave it blank to generate a fresh one.
 
+The address appears in the URL table immediately, but expect a few minutes before it is reachable over I2P — the router has to build inbound tunnels and publish the address to the network first.
+
 ## Router Console
 Open the **I2P Router Console** from this service's Interfaces section to monitor the router: network status (OK / Firewalled), tunnel creation success rate, known routers, and active tunnels.
 

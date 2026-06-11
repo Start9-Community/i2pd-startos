@@ -150,13 +150,6 @@ There is no upstream configuration UI.
   - **Custom Reseed URL** -- HTTPS su3 reseed endpoint used instead of the default reseed servers (optional)
 - **Effect:** Rewrites `i2pd.conf`/`tunnels.conf` and restarts the service (`i2pd.conf` is not hot-reloadable)
 
-### Reseed Router
-
-- **ID:** `reseed-router`
-- **Visibility:** Enabled (user-facing)
-- **Purpose:** Re-download router information from reseed servers
-- **Availability:** Any status
-
 ### Add I2P Tunnel (hidden)
 
 - **ID:** `add-i2p-tunnel`
@@ -257,7 +250,6 @@ startos_managed_config:
   - i2pd.conf / tunnels.conf (write-only, regenerated from config.json)
 actions:
   - configure-router (user-facing)
-  - reseed-router (user-facing)
   - add-i2p-tunnel (hidden, URL plugin)
   - delete-i2p-tunnel (hidden, URL plugin)
 languages: [en_US, es_ES, de_DE, pl_PL, fr_FR]

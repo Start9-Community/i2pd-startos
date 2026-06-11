@@ -88,7 +88,7 @@ export const exportUrls = sdk.plugin.url.setupExportedUrls(
           'etc/i2pd/tunnels.conf',
           generateTunnelsConf(updated),
         )
-        await reloadI2pdTunnels()
+        await reloadI2pdTunnels(effects)
       }
     }
 
