@@ -2,10 +2,10 @@ import { setupManifest } from '@start9labs/start-sdk'
 import i18n from './i18n'
 
 export const manifest = setupManifest({
-  id: 'i2p',
-  title: 'I2P',
+  id: 'i2pd',
+  title: 'I2Pd',
   license: 'BSD-3-Clause',
-  packageRepo: 'https://github.com/Start9-Community/i2p-startos',
+  packageRepo: 'https://github.com/Start9-Community/i2pd-startos',
   upstreamRepo: 'https://github.com/PurpleI2P/i2pd',
   marketingUrl: 'https://i2pd.website/',
   donationUrl: 'https://i2pd.website/en/donate',

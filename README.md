@@ -16,7 +16,7 @@ I2P network. Provides SOCKS and HTTP proxies for accessing I2P addresses, and
 can optionally operate as a floodfill node to support the network.
 
 - **Upstream repo:** <https://github.com/PurpleI2P/i2pd>
-- **Wrapper repo:** <https://github.com/Start9-Community/i2p-startos>
+- **Wrapper repo:** <https://github.com/Start9-Community/i2pd-startos>
 
 ---
 
